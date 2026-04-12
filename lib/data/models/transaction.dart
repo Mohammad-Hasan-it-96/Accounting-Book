@@ -2,7 +2,7 @@
 class Transaction {
   final int? id;
   final int cusId;
-  final int inFlag;   // 1 = له (دائن) | -1 = عليه (مدين)
+  final int inFlag;   // 1 = مطلوب (دائن) | -1 = مدفوع (مدين)
   final double out;   // قيمة الحركة
   final String? date;
   final String? remarks;

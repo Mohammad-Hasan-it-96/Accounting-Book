@@ -36,8 +36,8 @@ class _TransactionTypeOption {
 class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
   final _formKey = GlobalKey<FormState>();
   static const List<_TransactionTypeOption> _transactionTypeOptions = [
-    _TransactionTypeOption(inValue: 1, label: 'له'),
-    _TransactionTypeOption(inValue: -1, label: 'عليه'),
+    _TransactionTypeOption(inValue: 1, label: 'مطلوب'),
+    _TransactionTypeOption(inValue: -1, label: 'مدفوع'),
   ];
 
   late final TextEditingController _amountCtrl;

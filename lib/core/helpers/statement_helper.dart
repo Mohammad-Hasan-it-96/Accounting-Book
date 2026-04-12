@@ -45,8 +45,8 @@ class StatementHelper {
     }
 
     buffer.writeln('');
-    buffer.writeln('إجمالي له: ${FormatHelper.formatAmount(totalIn)}');
-    buffer.writeln('إجمالي عليه: ${FormatHelper.formatAmount(totalOut)}');
+    buffer.writeln('إجمالي مطلوب: ${FormatHelper.formatAmount(totalIn)}');
+    buffer.writeln('إجمالي مدفوع: ${FormatHelper.formatAmount(totalOut)}');
     buffer.writeln(
       'الرصيد النهائي: ${FormatHelper.formatAmount(finalBalance)} $currencyName',
     );

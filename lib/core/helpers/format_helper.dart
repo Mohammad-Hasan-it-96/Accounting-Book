@@ -80,8 +80,8 @@ class FormatHelper {
 }
 
 /// حساب الرصيد من قيمة in و out
-/// in=1  => حركة له (دائن) : تُضاف للرصيد
-/// in=-1 => حركة عليه (مدين) : تُطرح من الرصيد
+/// in=1  => حركة مطلوب (دائن) : تُضاف للرصيد
+/// in=-1 => حركة مدفوع (مدين) : تُطرح من الرصيد
 /// يمكن تعديل هذا الحساب من مكان واحد هنا فقط
 class BalanceHelper {
   static double calcTransactionValue(int inFlag, double outVal) {
@@ -100,7 +100,7 @@ class BalanceHelper {
 
   /// وصف نوع الحركة بالعربية
   static String transactionLabel(int inFlag) {
-    return inFlag == 1 ? 'له' : 'عليه';
+    return inFlag == 1 ? 'مطلوب' : 'مدفوع';
   }
 }
 

@@ -697,14 +697,14 @@ class _SummarySection extends StatelessWidget {
         children: [
           Expanded(
             child: _SummaryValue(
-              title: 'إجمالي له',
+              title: 'إجمالي مطلوب',
               value: FormatHelper.formatAmount(summary.totalIn),
               color: const Color(0xFF2E7D32),
             ),
           ),
           Expanded(
             child: _SummaryValue(
-              title: 'إجمالي عليه',
+              title: 'إجمالي مدفوع',
               value: FormatHelper.formatAmount(summary.totalOut),
               color: const Color(0xFFC62828),
             ),

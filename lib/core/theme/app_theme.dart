@@ -4,8 +4,8 @@ class AppTheme {
   // الألوان الأساسية - هادئة وبسيطة
   static const Color primary = Color(0xFF1565C0);     // أزرق داكن
   static const Color primaryLight = Color(0xFF1E88E5); // أزرق فاتح
-  static const Color income = Color(0xFF2E7D32);       // أخضر (له / دائن)
-  static const Color expense = Color(0xFFC62828);      // أحمر (عليه / مدين)
+  static const Color income = Color(0xFF2E7D32);       // أخضر (مطلوب / دائن)
+  static const Color expense = Color(0xFFC62828);      // أحمر (مدفوع / مدين)
   static const Color neutral = Color(0xFF546E7A);      // رمادي مزرق
 
   static ThemeData get lightTheme {
