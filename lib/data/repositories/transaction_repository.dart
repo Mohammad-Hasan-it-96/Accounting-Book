@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart' hide Transaction;
 import '../database/database_helper.dart';
 import '../models/transaction.dart' as tx_model;
 import '../../core/constants/app_constants.dart';
+import '../../core/helpers/format_helper.dart';
 
 /// مستودع العمليات على جدول الحركات
 class TransactionRepository {
@@ -93,7 +94,7 @@ class TransactionRepository {
       result[id] = CustomerSummary(
         balance: (r['balance'] as num?)?.toDouble() ?? 0.0,
         txCount: (r['tx_count'] as num?)?.toInt() ?? 0,
-        lastTxDate: DateTime.tryParse((r['last_tx_date'] ?? '').toString()),
+        lastTxDate: FormatHelper.parseDate((r['last_tx_date'] ?? '').toString()),
       );
     }
     return result;

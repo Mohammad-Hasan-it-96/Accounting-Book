@@ -5,11 +5,48 @@ class FormatHelper {
   /// تحويل النص إلى تاريخ بطريقة آمنة
   static DateTime? parseDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return null;
-    try {
-      return DateTime.parse(dateStr);
-    } catch (_) {
-      return null;
+    final normalized = _normalizeDateInput(dateStr);
+
+    // يدعم ISO وكل صيَغ DateTime القياسية.
+    final parsedIso = DateTime.tryParse(normalized);
+    if (parsedIso != null) return parsedIso;
+
+    // يدعم صيغ النسخ القديمة أثناء الاستيراد.
+    const legacyPatterns = <String>[
+      'yyyy/MM/dd',
+      'yyyy/M/d',
+      'dd/MM/yyyy',
+      'd/M/yyyy',
+      'dd-MM-yyyy',
+      'd-M-yyyy',
+      'yyyy/MM/dd HH:mm:ss',
+      'yyyy-MM-dd HH:mm:ss',
+    ];
+
+    for (final pattern in legacyPatterns) {
+      try {
+        return DateFormat(pattern).parseStrict(normalized);
+      } catch (_) {
+        // جرّب النمط التالي
+      }
     }
+
+    return null;
+  }
+
+  static String _normalizeDateInput(String input) {
+    var value = input.trim();
+    if (value.isEmpty) return value;
+
+    // تحويل الأرقام العربية إلى لاتينية لتفادي فشل parse.
+    const arabicIndic = '٠١٢٣٤٥٦٧٨٩';
+    const easternArabicIndic = '۰۱۲۳۴۵۶۷۸۹';
+    for (var i = 0; i < 10; i++) {
+      value = value.replaceAll(arabicIndic[i], '$i');
+      value = value.replaceAll(easternArabicIndic[i], '$i');
+    }
+
+    return value;
   }
 
   /// تنسيق التاريخ للعرض

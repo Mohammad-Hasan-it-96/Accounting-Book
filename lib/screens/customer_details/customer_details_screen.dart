@@ -36,7 +36,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
 
   DateTime? _parseTxDate(String? raw) {
     if (raw == null || raw.isEmpty) return null;
-    return DateTime.tryParse(raw);
+    return FormatHelper.parseDate(raw);
   }
 
   List<tx_model.Transaction> get _filteredTransactions {
