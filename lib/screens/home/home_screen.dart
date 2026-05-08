@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
+import '../../core/services/update_service.dart';
+import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/models/customer.dart';
 import '../currency_accounts/currency_accounts_screen.dart';
@@ -25,7 +27,17 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AppProvider>().loadCurrencies();
+      _checkForUpdate();
     });
+  }
+
+  // ─── فحص التحديث عند بدء الشاشة ─────────────────────────────────────────
+  Future<void> _checkForUpdate() async {
+    final result = await UpdateService().checkForUpdate();
+    if (!mounted) return;
+    if (result.hasUpdate && result.info != null) {
+      await UpdateDialog.show(context, result.info!);
+    }
   }
 
   @override
@@ -511,7 +523,7 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
 
     return ListView.separated(
       itemCount: displayResults.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (_, i) {
         final c = displayResults[i];
         return ListTile(

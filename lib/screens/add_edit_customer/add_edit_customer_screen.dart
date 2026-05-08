@@ -202,7 +202,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
             const SizedBox(height: 12),
             // المجموعة
             DropdownButtonFormField<int?>(
-              value: _groups.any((g) => g.id == _selectedGroupId)
+              initialValue: _groups.any((g) => g.id == _selectedGroupId)
                   ? _selectedGroupId
                   : null,
               decoration: const InputDecoration(
@@ -226,7 +226,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
             const SizedBox(height: 12),
             // النوع
             DropdownButtonFormField<int?>(
-              value: _types.any((t) => t.id == _selectedTypeId)
+              initialValue: _types.any((t) => t.id == _selectedTypeId)
                   ? _selectedTypeId
                   : null,
               decoration: const InputDecoration(

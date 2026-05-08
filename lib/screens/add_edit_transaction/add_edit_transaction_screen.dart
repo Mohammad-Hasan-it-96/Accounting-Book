@@ -224,7 +224,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             DropdownButtonFormField<int>(
-              value: _customers.any((c) => c.id == _selectedCustomerId)
+              initialValue: _customers.any((c) => c.id == _selectedCustomerId)
                   ? _selectedCustomerId
                   : null,
               decoration: const InputDecoration(
@@ -246,7 +246,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
             const SizedBox(height: 16),
 
             DropdownButtonFormField<int>(
-              value: _currencies.any((c) => c.id == _selectedCurrencyId)
+              initialValue: _currencies.any((c) => c.id == _selectedCurrencyId)
                   ? _selectedCurrencyId
                   : null,
               decoration: const InputDecoration(
@@ -308,7 +308,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
             const SizedBox(height: 12),
 
             DropdownButtonFormField<int>(
-              value: _normalizeInFlag(_inFlag),
+              initialValue: _normalizeInFlag(_inFlag),
               decoration: const InputDecoration(
                 labelText: 'نوع الحركة *',
                 prefixIcon: Icon(Icons.compare_arrows),

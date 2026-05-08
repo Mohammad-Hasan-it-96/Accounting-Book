@@ -8,6 +8,7 @@ class AppTheme {
   static const Color expense = Color(0xFFC62828);      // أحمر (مدفوع / مدين)
   static const Color neutral = Color(0xFF546E7A);      // رمادي مزرق
 
+  // ─── Light Theme ─────────────────────────────────────────────────────────
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
@@ -15,7 +16,6 @@ class AppTheme {
         seedColor: primary,
         brightness: Brightness.light,
       ),
-      // خط واضح للعربية
       fontFamily: 'Roboto',
       appBarTheme: const AppBarTheme(
         backgroundColor: primary,
@@ -40,6 +40,44 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+    );
+  }
+
+  // ─── Dark Theme ──────────────────────────────────────────────────────────
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primary,
+        brightness: Brightness.dark,
+      ),
+      fontFamily: 'Roboto',
+      appBarTheme: AppBarTheme(
+        backgroundColor: Colors.grey.shade900,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        centerTitle: true,
+        titleTextStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 1,
+        color: const Color(0xFF272727),
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: primaryLight,
+        foregroundColor: Colors.white,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
     );
   }
