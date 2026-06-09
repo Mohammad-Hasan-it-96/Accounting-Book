@@ -40,8 +40,6 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
   }
 
   List<tx_model.Transaction> get _filteredTransactions {
-    if (_fromDate == null && _toDate == null) return _transactions;
-
     final from = _fromDate;
     final to = _toDate == null
         ? null
@@ -55,13 +53,46 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
             999,
           );
 
-    return _transactions.where((tx) {
-      final date = _parseTxDate(tx.date);
-      if (date == null) return false;
-      if (from != null && date.isBefore(from)) return false;
-      if (to != null && date.isAfter(to)) return false;
-      return true;
+    // Create a list of transactions with their parsed date (or null)
+    final List<Map<String, dynamic>> processed = [];
+    for (final tx in _transactions) {
+      final parsed = _parseTxDate(tx.date);
+      processed.add({'tx': tx, 'date': parsed});
+    }
+
+    // Determine if we have an active date filter
+    final bool hasActiveFilter = from != null || to != null;
+    final List<Map<String, dynamic>> filtered = processed.where((item) {
+      if (!hasActiveFilter) {
+        // No date filter: include regardless of parse success
+        return true;
+      } else {
+        // Has date filter: we require a valid date and within range
+        if (item['date'] == null) return false;
+        if (from != null && item['date'].isBefore(from)) return false;
+        if (to != null && item['date'].isAfter(to)) return false;
+        return true;
+      }
     }).toList();
+
+    // Sort: first by date descending (null dates last), then maintain original order for equal dates
+    filtered.sort((a, b) {
+      final dateA = a['date'];
+      final dateB = b['date'];
+      // If both have dates, compare by date descending
+      if (dateA != null && dateB != null) {
+        return dateB.compareTo(dateA); // descending
+      }
+      // If only a has date, a comes first
+      if (dateA != null) return -1;
+      // If only b has date, b comes first
+      if (dateB != null) return 1;
+      // Both null: maintain original order (do nothing)
+      return 0;
+    });
+
+    // Return just the transactions
+    return filtered.map((e) => e['tx'] as tx_model.Transaction).toList();
   }
 
   Future<void> _pickFromDate() async {
@@ -218,23 +249,25 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
         ),
         title: Text(widget.customer.name),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.copy),
-            tooltip: 'نسخ كشف الحساب',
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: _buildStatement()));
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('تم نسخ كشف الحساب'),
-                    behavior: SnackBarBehavior.floating,
-                  ));
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.share),
-            tooltip: 'مشاركة الكشف',
-            onPressed: () => Share.share(_buildStatement()),
-          ),
+           IconButton(
+             icon: const Icon(Icons.copy),
+             tooltip: 'نسخ',
+             color: Theme.of(context).primaryColor,
+             onPressed: () {
+               Clipboard.setData(ClipboardData(text: _buildStatement()));
+               ScaffoldMessenger.of(context).showSnackBar(
+                   const SnackBar(
+                     content: Text('تم نسخ كشف الحساب'),
+                     behavior: SnackBarBehavior.floating,
+                   ));
+             },
+           ),
+           IconButton(
+             icon: const Icon(Icons.share),
+             tooltip: 'مشاركة',
+             color: Theme.of(context).primaryColor,
+             onPressed: () => Share.share(_buildStatement()),
+           ),
         ],
       ),
       body: _loading
@@ -260,7 +293,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: Text(
-                        'الملخص محسوب حسب الفلتر الزمني الحالي.',
+                         'ملخص مفilter',
                         style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                       ),
                     ),
@@ -368,25 +401,26 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'إضافة حركة',
-        onPressed: () async {
-          final changed = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AddEditTransactionScreen(
-                customer: widget.customer,
-                currency: widget.currency,
-              ),
-            ),
-          );
-          if (changed == true) {
-            _hasChanges = true;
-            await _load();
-          }
-        },
-        child: const Icon(Icons.add),
-      ),
+       floatingActionButton: FloatingActionButton(
+         backgroundColor: Theme.of(context).primaryColor,
+         tooltip: 'إضافة حركة',
+         onPressed: () async {
+           final changed = await Navigator.push<bool>(
+             context,
+             MaterialPageRoute(
+               builder: (_) => AddEditTransactionScreen(
+                 customer: widget.customer,
+                 currency: widget.currency,
+               ),
+             ),
+           );
+           if (changed == true) {
+             _hasChanges = true;
+             await _load();
+           }
+         },
+         child: const Icon(Icons.add, size: 30),
+       ),
       ),
     );
   }
@@ -415,11 +449,18 @@ class _CustomerHeader extends StatelessWidget {
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: balanceColor.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: balanceColor.withValues(alpha: 0.25)),
-      ),
+       decoration: BoxDecoration(
+         color: balanceColor.withValues(alpha: 0.07),
+         borderRadius: BorderRadius.circular(12),
+         border: Border.all(color: balanceColor.withValues(alpha: 0.25)),
+         boxShadow: [
+           BoxShadow(
+             color: Colors.black.withValues(alpha: 0.05),
+             blurRadius: 4,
+             offset: Offset(0, 2),
+           ),
+         ],
+       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -477,13 +518,13 @@ class _CustomerHeader extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 11, color: Colors.grey.shade500)),
                   const SizedBox(height: 2),
-                  Text(
-                    '${FormatHelper.formatAmount(balance)} ${currency.displayName}',
-                    style: TextStyle(
-                        color: balanceColor,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold),
-                  ),
+                   Text(
+                     '${FormatHelper.formatAmount(balance)} ${currency.displayName}',
+                     style: TextStyle(
+                         color: balanceColor,
+                         fontSize: 28,
+                         fontWeight: FontWeight.bold),
+                   ),
                 ],
               ),
               // عدد الحركات
@@ -581,22 +622,22 @@ class _TransactionTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 3),
-                  // التاريخ
-                  if (tx.date != null)
-                    Text(
-                      FormatHelper.formatDate(tx.date),
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade500),
-                    ),
+                   // التاريخ
+                   if (tx.date != null)
+                     Text(
+                       FormatHelper.formatDate(tx.date),
+                       style: TextStyle(
+                           fontSize: 13, color: Colors.grey.shade500),
+                     ),
                   // الملاحظة
                   if (hasRemarks) ...[
                     const SizedBox(height: 2),
                     Text(
-                      tx.remarks!,
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade600),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                       tx.remarks!,
+                       style: TextStyle(
+                           fontSize: 12, color: Colors.grey.shade600),
+                       maxLines: 1,
+                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ],
@@ -607,16 +648,16 @@ class _TransactionTile extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // المبلغ — واضح وكبير
-                Text(
-                  FormatHelper.formatAmount(tx.out),
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.3,
-                  ),
-                ),
+                 // المبلغ — واضح وكبير
+                 Text(
+                   FormatHelper.formatAmount(tx.out),
+                   style: TextStyle(
+                     color: color,
+                     fontSize: 19,
+                     fontWeight: FontWeight.bold,
+                     letterSpacing: 0.3,
+                   ),
+                 ),
                 Text(
                   currencyName,
                   style: TextStyle(

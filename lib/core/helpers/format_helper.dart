@@ -11,23 +11,26 @@ class FormatHelper {
     final parsedIso = DateTime.tryParse(normalized);
     if (parsedIso != null) return parsedIso;
 
-    // يدعم صيغ النسخ القديمة أثناء الاستيراد.
-    const legacyPatterns = <String>[
+    // supported common patterns
+    const patterns = <String>[
+      'yyyy-MM-dd',
       'yyyy/MM/dd',
-      'yyyy/M/d',
       'dd/MM/yyyy',
-      'd/M/yyyy',
       'dd-MM-yyyy',
-      'd-M-yyyy',
-      'yyyy/MM/dd HH:mm:ss',
-      'yyyy-MM-dd HH:mm:ss',
+      'MM/dd/yyyy',
+      // also allow single digit month/day without leading zeros
+      'yyyy-M-d',
+      'yyyy/M/d',
+      'd/M/yyyy',
+      'dd-M-yyyy',
+      'M/d/yyyy',
     ];
 
-    for (final pattern in legacyPatterns) {
+    for (final pattern in patterns) {
       try {
         return DateFormat(pattern).parseStrict(normalized);
       } catch (_) {
-        // جرّب النمط التالي
+        // try next pattern
       }
     }
 

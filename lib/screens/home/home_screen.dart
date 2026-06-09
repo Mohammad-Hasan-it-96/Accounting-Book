@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
+import '../../core/services/activation_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
@@ -22,13 +23,38 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _searchCtrl = TextEditingController();
 
+  // ─── حالة التفعيل ─────────────────────────────────────────────────────────
+  bool _isActivated = false;
+  int  _customerCount = 0;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AppProvider>().loadCurrencies();
       _checkForUpdate();
+      _loadActivationStatus();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  // ─── تحميل حالة التفعيل ───────────────────────────────────────────────────
+  Future<void> _loadActivationStatus() async {
+    final activated = await ActivationService().isActivated();
+    if (!mounted) return;
+    if (activated) {
+      setState(() { _isActivated = true; _customerCount = 0; });
+      return;
+    }
+    final dbHelper = context.read<AppProvider>().dbHelper;
+    final count = await CustomerRepository(dbHelper).count();
+    if (!mounted) return;
+    setState(() { _isActivated = false; _customerCount = count; });
   }
 
   // ─── فحص التحديث عند بدء الشاشة ─────────────────────────────────────────
@@ -38,12 +64,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (result.hasUpdate && result.info != null) {
       await UpdateDialog.show(context, result.info!);
     }
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
   }
 
   // ─── استيراد نسخة احتياطية ───────────────────────────────────────────────
@@ -95,6 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
     await provider.reload();
     if (!mounted) return;
     _showSnack('تم استيراد النسخة الاحتياطية بنجاح');
+    _loadActivationStatus();
   }
 
   // ─── تصدير نسخة احتياطية ─────────────────────────────────────────────────
@@ -127,16 +148,12 @@ class _HomeScreenState extends State<HomeScreen> {
   // ─── فتح دفتر عملة ───────────────────────────────────────────────────────
   void _openCurrencyBook(String displayName) {
     final provider = context.read<AppProvider>();
-
-    // إذا لا تزال تُحمَّل العملات → انتظر
     if (provider.loading) {
       _showSnack('جارٍ تحميل البيانات...');
       return;
     }
-
     final currency =
         displayName == 'ليرة' ? provider.liraCurrency : provider.dollarCurrency;
-
     if (currency == null) {
       _showSnack(
         'عملة "$displayName" غير موجودة.\nاستورد قاعدة بيانات أو أعد تشغيل التطبيق.',
@@ -144,19 +161,18 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       return;
     }
-
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CurrencyAccountsScreen(currency: currency),
       ),
-    );
+    ).then((_) => _loadActivationStatus());
   }
 
+  // ─── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    // watch بدل read حتى تتحدث الواجهة عند انتهاء تحميل العملات
-    final provider = context.watch<AppProvider>();
+    final provider  = context.watch<AppProvider>();
     final isLoading = provider.loading;
 
     return Scaffold(
@@ -164,142 +180,189 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('دفتر حسابات'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.settings_outlined),
             tooltip: 'الإعدادات',
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen())),
-          )
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ).then((_) => _loadActivationStatus()),
+          ),
         ],
       ),
-      body: Column(
+      body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         children: [
-          // ─── بحث سريع ───────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                hintText: 'بحث سريع عن عميل...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchCtrl.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchCtrl.clear();
-                          setState(() {});
-                        })
-                    : null,
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
+          // ── شريط حالة التفعيل ─────────────────────────────────────
+          _ActivationBanner(
+            isActivated: _isActivated,
+            customerCount: _customerCount,
           ),
-          // ─── نتائج سريعة خفيفة تحت حقل البحث ─────────────────────
-          if (_searchCtrl.text.trim().isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 240),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: _QuickSearchResults(
-                      query: _searchCtrl.text.trim(),
-                      provider: provider,
-                      compact: true,
-                    ),
+          const SizedBox(height: 10),
+
+          // ── بحث سريع ────────────────────────────────────────────
+          TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'بحث سريع عن عميل...',
+              prefixIcon: const Icon(Icons.search),
+              isDense: true,
+              suffixIcon: _searchCtrl.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchCtrl.clear();
+                        setState(() {});
+                      })
+                  : null,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+
+          // ── نتائج البحث ──────────────────────────────────────────
+          if (_searchCtrl.text.trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 240),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: _QuickSearchResults(
+                    query: _searchCtrl.text.trim(),
+                    provider: provider,
+                    compact: true,
                   ),
                 ),
               ),
             ),
-          if (_searchCtrl.text.trim().isNotEmpty &&
-              provider.liraCurrency != null &&
-              provider.dollarCurrency != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
-              child: Align(
-                alignment: Alignment.centerRight,
+            if (provider.liraCurrency != null && provider.dollarCurrency != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  'عند فتح عميل من البحث سيتم سؤالك عن الدفتر (ليرة/دولار).',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  'عند فتح عميل من البحث سيتم سؤالك عن الدفتر.',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                 ),
               ),
-            ),
-          const SizedBox(height: 8),
-          // ─── أزرار الدفاتر ──────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _BookButton(
-                    label: 'دفتر الليرة',
-                    icon: Icons.account_balance_wallet,
-                    color: const Color(0xFF1565C0),
-                    // تعطيل الزر أثناء التحميل
-                    onTap: isLoading ? null : () => _openCurrencyBook('ليرة'),
-                    loading: isLoading,
-                  ),
+          ],
+
+          const SizedBox(height: 16),
+
+          // ── زرا الدفاتر الرئيسيان ────────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: _BookButton(
+                  label: 'دفتر الليرة',
+                  icon: Icons.account_balance_wallet_outlined,
+                  color: const Color(0xFF1565C0),
+                  onTap: isLoading ? null : () => _openCurrencyBook('ليرة'),
+                  loading: isLoading,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _BookButton(
-                    label: 'دفتر الدولار',
-                    icon: Icons.attach_money,
-                    color: const Color(0xFF2E7D32),
-                    onTap: isLoading ? null : () => _openCurrencyBook('دولار'),
-                    loading: isLoading,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _BookButton(
+                  label: 'دفتر الدولار',
+                  icon: Icons.attach_money,
+                  color: const Color(0xFF2E7D32),
+                  onTap: isLoading ? null : () => _openCurrencyBook('دولار'),
+                  loading: isLoading,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          // ── بطاقة النسخ الاحتياطي ────────────────────────────────
+          _BackupCard(
+            onImport: _importBackup,
+            onExport: _exportBackup,
+          ),
+
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── شريط حالة التفعيل ───────────────────────────────────────────────────────
+class _ActivationBanner extends StatelessWidget {
+  final bool isActivated;
+  final int  customerCount;
+  const _ActivationBanner({
+    required this.isActivated,
+    required this.customerCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isActivated) {
+      return Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              border: Border.all(color: Colors.green.shade200),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.verified_outlined,
+                    size: 14, color: Colors.green.shade700),
+                const SizedBox(width: 4),
+                Text(
+                  'مفعّل',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.green.shade700,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // ─── أزرار النسخ الاحتياطي ──────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.upload_file),
-                    label: const Text('استيراد'),
-                    onPressed: _importBackup,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.download),
-                    label: const Text('تصدير'),
-                    onPressed: _exportBackup,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 24),
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.menu_book,
-                      size: 72, color: Colors.grey.shade300),
-                  const SizedBox(height: 12),
-                  Text(
-                    isLoading ? 'جارٍ التحميل...' : 'اختر دفتراً للبدء',
-                    style: TextStyle(color: Colors.grey.shade500),
-                  ),
-                ],
-              ),
             ),
           ),
         ],
-      ),
+      );
+    }
+
+    // غير مفعّل — اعرض العداد
+    final remaining = 50 - customerCount;
+    final isNearLimit = remaining <= 10;
+    final color = isNearLimit ? Colors.orange : Colors.blueGrey;
+
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_open_outlined, size: 14, color: color.shade700),
+              const SizedBox(width: 4),
+              Text(
+                'مجاني: $customerCount / 50',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: color.shade700,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -323,31 +386,92 @@ class _BookButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: loading ? color.withValues(alpha: 0.5) : color,
-      borderRadius: BorderRadius.circular(10),
+      color: loading ? color.withValues(alpha: 0.45) : color,
+      borderRadius: BorderRadius.circular(14),
+      elevation: loading ? 0 : 2,
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
+          padding: const EdgeInsets.symmetric(vertical: 26),
           child: Column(
             children: [
               loading
                   ? const SizedBox(
-                      width: 32,
-                      height: 32,
+                      width: 36,
+                      height: 36,
                       child: CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2.5),
                     )
-                  : Icon(icon, color: Colors.white, size: 32),
-              const SizedBox(height: 8),
-              Text(label,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold)),
+                  : Icon(icon, color: Colors.white, size: 36),
+              const SizedBox(height: 10),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── بطاقة النسخ الاحتياطي ───────────────────────────────────────────────────
+class _BackupCard extends StatelessWidget {
+  final VoidCallback onImport;
+  final VoidCallback onExport;
+  const _BackupCard({required this.onImport, required this.onExport});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.save_outlined,
+                size: 18, color: Colors.grey.shade500),
+            const SizedBox(width: 8),
+            Text(
+              'النسخ الاحتياطي',
+              style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w600),
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: onImport,
+              icon: const Icon(Icons.upload_file, size: 16),
+              label: const Text('استيراد'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey.shade700,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              ),
+            ),
+            const SizedBox(width: 4),
+            TextButton.icon(
+              onPressed: onExport,
+              icon: const Icon(Icons.download_outlined, size: 16),
+              label: const Text('تصدير'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey.shade700,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              ),
+            ),
+          ],
         ),
       ),
     );

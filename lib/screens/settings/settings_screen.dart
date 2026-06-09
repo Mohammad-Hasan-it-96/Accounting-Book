@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/widgets/update_dialog.dart';
+import '../../data/models/customer.dart';
+import '../../data/repositories/customer_repository.dart';
+import '../../providers/app_provider.dart';
+import '../../core/helpers/format_helper.dart';
 import '../../providers/theme_provider.dart';
 import '../activation/activation_screen.dart';
 
@@ -25,6 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String  _apiUrl         = SettingsService.defaultApiUrl;
   String? _deviceId;
   bool    _isActivated    = false;
+  int     _customerCount  = 0;
 
   bool _loadingInfo       = true;
   bool _checkingUpdate    = false;
@@ -36,44 +43,95 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadInfo();
   }
 
-  // ─── تحميل البيانات الأولية ───────────────────────────────────────────────
-  Future<void> _loadInfo() async {
-    final results = await Future.wait([
-      PackageInfo.fromPlatform(),
-      SettingsService().getApiUrl(),
-      ActivationService().getDeviceId(),
-      ActivationService().isActivated(),
-    ]);
-    if (!mounted) return;
-    final pkg       = results[0] as PackageInfo;
-    final api       = results[1] as String;
-    final device    = results[2] as String;
-    final activated = results[3] as bool;
-    setState(() {
-      _version      = pkg.version;
-      _buildNumber  = pkg.buildNumber;
-      _apiUrl       = api;
-      _deviceId     = device;
-      _isActivated  = activated;
-      _loadingInfo  = false;
-    });
-  }
+   // ─── تحميل البيانات الأولية ───────────────────────────────────────────────
+   Future<void> _loadInfo() async {
+     final results = await Future.wait([
+       PackageInfo.fromPlatform(),
+       SettingsService().getApiUrl(),
+       ActivationService().getDeviceId(),
+       ActivationService().isActivated(),
+       CustomerRepository(context.read<AppProvider>().dbHelper).getAll(),
+     ]);
+     if (!mounted) return;
+     final pkg       = results[0] as PackageInfo;
+     final api       = results[1] as String;
+     final device    = results[2] as String;
+     final activated = results[3] as bool;
+     final customers = results[4] as List<Customer>;
+     setState(() {
+       _version      = pkg.version;
+       _buildNumber  = pkg.buildNumber;
+       _apiUrl       = api;
+       _deviceId     = device;
+       _isActivated  = activated;
+       _customerCount = customers.length;
+       _loadingInfo  = false;
+     });
+   }
 
-  // ─── فحص التحديثات ────────────────────────────────────────────────────────
-  Future<void> _checkUpdates() async {
-    setState(() => _checkingUpdate = true);
-    final result = await UpdateService().checkForUpdate();
-    if (!mounted) return;
-    setState(() => _checkingUpdate = false);
+   // ─── فحص التحديثات ────────────────────────────────────────────────────────
+   Future<void> _checkUpdates() async {
+     setState(() => _checkingUpdate = true);
+     final result = await UpdateService().checkForUpdate();
+     if (!mounted) return;
+     setState(() => _checkingUpdate = false);
 
-    if (result.hasUpdate && result.info != null) {
-      await UpdateDialog.show(context, result.info!);
-    } else if (result.isFailure) {
-      _showSnack(result.error!, isError: true);
-    } else {
-      _showSnack('✅  أنت تستخدم أحدث إصدار');
-    }
-  }
+     if (result.hasUpdate && result.info != null) {
+       await UpdateDialog.show(context, result.info!);
+     } else if (result.isFailure) {
+       _showSnack(result.error!, isError: true);
+     } else {
+       _showSnack('✅  أنت تستخدم أحدث إصدار');
+     }
+   }
+
+   // ─── تصدير الاحتياطي ────────────────────────────────────────────────────────
+   Future<void> _exportBackup() async {
+     final provider = context.read<AppProvider>();
+     try {
+       final fileName = FormatHelper.backupFileName();
+       final path = await provider.dbHelper.exportDatabase(fileName);
+       if (!mounted) return;
+       if (path == null) {
+         _showSnack('تعذر تصدير النسخة الاحتياطية', isError: true);
+         return;
+       }
+       await Share.shareXFiles(
+         [XFile(path)],
+         text: 'نسخة احتياطية من دفتر الحسابات',
+       );
+       if (!mounted) return;
+       _showSnack('تم تصدير النسخة الاحتياطية بنجاح');
+     } catch (e) {
+       if (!mounted) return;
+       _showSnack('فشل التصدير: $e', isError: true);
+     }
+   }
+
+   // ─── استيراد الاحتياطي ─────────────────────────────────────────────────────
+   Future<void> _importBackup() async {
+     final provider = context.read<AppProvider>();
+     try {
+       final result = await FilePicker.platform.pickFiles(
+         type: FileType.any,
+         allowMultiple: false,
+       );
+       if (result == null || result.files.single.path == null) return;
+       final path = result.files.single.path!;
+       final ok = await provider.dbHelper.importDatabase(path);
+       if (!mounted) return;
+       if (ok) {
+         _showSnack('تم استيراد النسخة الاحتياطية بنجاح');
+         // إعادة تحميل البيانات لتعكس التغييرات
+         await _loadInfo();
+       } else {
+         _showSnack('فشل الاستيراد', isError: true);
+       }
+     } catch (e) {
+       if (!mounted) return;
+       _showSnack('خطأ في الاستيراد: $e', isError: true);
+     }
+   }
 
   // ─── إعادة فحص التفعيل ────────────────────────────────────────────────────
   Future<void> _recheckActivation() async {
@@ -211,13 +269,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // ──────────────────────────────────────────────────────────
                 // بطاقة معلومات التطبيق
                 // ──────────────────────────────────────────────────────────
-                _AppInfoCard(
-                  version:     _version,
-                  buildNumber: _buildNumber,
-                  deviceId:    _deviceId ?? '',
-                  onCopy:      _copyDeviceId,
-                  primary:     primary,
-                ),
+                 _AppInfoCard(
+                   version:     _version,
+                   buildNumber: _buildNumber,
+                   deviceId:    _deviceId ?? '',
+                   onCopy:      _copyDeviceId,
+                   primary:     primary,
+                   customerCount: _customerCount,
+                 ),
 
                 const SizedBox(height: 8),
 
@@ -238,42 +297,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(),
 
-                // ──────────────────────────────────────────────────────────
-                // التحديثات
-                // ──────────────────────────────────────────────────────────
-                _SectionHeader(title: 'التحديثات'),
-                ListTile(
-                  leading: const Icon(Icons.system_update_outlined),
-                  title: const Text('التحقق من التحديثات'),
-                  subtitle: const Text('البحث عن إصدارات جديدة'),
-                  trailing: _checkingUpdate
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.chevron_left),
-                  onTap: _checkingUpdate ? null : _checkUpdates,
-                ),
-                const Divider(),
+                 // ──────────────────────────────────────────────────────────
+                 // التحديثات
+                 // ──────────────────────────────────────────────────────────
+                 _SectionHeader(title: 'التحديثات'),
+                 ListTile(
+                   leading: const Icon(Icons.system_update_outlined),
+                   title: const Text('التحقق من التحديثات'),
+                   subtitle: const Text('البحث عن إصدارات جديدة'),
+                   trailing: _checkingUpdate
+                       ? const SizedBox(
+                           width: 20,
+                           height: 20,
+                           child: CircularProgressIndicator(strokeWidth: 2),
+                         )
+                       : const Icon(Icons.chevron_left),
+                   onTap: _checkingUpdate ? null : _checkUpdates,
+                 ),
+                 const Divider(),
 
-                // ──────────────────────────────────────────────────────────
-                // إعدادات متقدمة
-                // ──────────────────────────────────────────────────────────
-                _SectionHeader(title: 'إعدادات متقدمة'),
-                ListTile(
-                  leading: const Icon(Icons.api_outlined),
-                  title: const Text('رابط API'),
-                  subtitle: Text(
-                    _apiUrl,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.edit_outlined),
-                  onTap: _editApiUrl,
-                ),
-                const Divider(),
+                 // ──────────────────────────────────────────────────────────
+                 // البيانات
+                 // ──────────────────────────────────────────────────────────
+                 _SectionHeader(title: 'البيانات'),
+                 ListTile(
+                   leading: const Icon(Icons.file_copy_outlined),
+                   title: const Text('تصدير الاحتياطي'),
+                   subtitle: const Text('حفظ نسخة احتياطية من البيانات'),
+                   trailing: const Icon(Icons.chevron_left),
+                   onTap: _exportBackup,
+                 ),
+                 ListTile(
+                   leading: const Icon(Icons.file_upload_outlined),
+                   title: const Text('استيراد الاحتياطي'),
+                   subtitle: const Text('استعادة البيانات من نسخة احتياطية'),
+                   trailing: const Icon(Icons.chevron_left),
+                   onTap: _importBackup,
+                 ),
+                 const Divider(),
+
+                 // ──────────────────────────────────────────────────────────
+                 // إعدادات متقدمة
+                 // ──────────────────────────────────────────────────────────
+                 _SectionHeader(title: 'إعدادات متقدمة'),
+                 ListTile(
+                   leading: const Icon(Icons.api_outlined),
+                   title: const Text('رابط API'),
+                   subtitle: Text(
+                     _apiUrl,
+                     maxLines: 1,
+                     overflow: TextOverflow.ellipsis,
+                     style: const TextStyle(fontSize: 12),
+                   ),
+                   trailing: const Icon(Icons.edit_outlined),
+                   onTap: _editApiUrl,
+                 ),
+                 const Divider(),
 
                 // ──────────────────────────────────────────────────────────
                 // الدعم الفني
@@ -399,6 +478,7 @@ class _AppInfoCard extends StatelessWidget {
   final String deviceId;
   final VoidCallback onCopy;
   final Color primary;
+  final int customerCount;
 
   const _AppInfoCard({
     required this.version,
@@ -406,6 +486,7 @@ class _AppInfoCard extends StatelessWidget {
     required this.deviceId,
     required this.onCopy,
     required this.primary,
+    required this.customerCount,
   });
 
   @override
@@ -441,6 +522,32 @@ class _AppInfoCard extends StatelessWidget {
                       ),
                       Text(
                         'الإصدار $version+$buildNumber',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            // ── عدد العملاء والحد المجاني ─────────────────────────────────
+            Row(
+              children: [
+                Icon(Icons.people_outline, size: 18, color: primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'العملاء: $customerCount',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      Text(
+                        'الحد المجاني: 50 حساب',
                         style: TextStyle(
                             fontSize: 12, color: Colors.grey.shade600),
                       ),

@@ -51,6 +51,15 @@ class CustomerRepository {
     return rows.map((r) => Customer.fromMap(r)).toList();
   }
 
+  /// عدد العملاء الإجمالي
+  Future<int> count() async {
+    final db = await _db;
+    final rows = await db.rawQuery(
+      'SELECT COUNT(*) AS cnt FROM ${AppConstants.tableCustomers}',
+    );
+    return (rows.first['cnt'] as num?)?.toInt() ?? 0;
+  }
+
   /// إضافة عميل جديد
   Future<int> insert(Customer customer) async {
     final db = await _db;

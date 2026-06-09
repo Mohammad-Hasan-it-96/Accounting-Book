@@ -143,11 +143,11 @@ class _ActivationScreenState extends State<ActivationScreen> {
                           style: const TextStyle(
                               fontSize: 20, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 6),
-                      Text(
-                        'أدخل اسمك ورقم هاتفك ثم اضغط "إرسال طلب التفعيل".\nبعد موافقة المطوّر اضغط "تحقق من التفعيل".',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.5),
-                      ),
+                       Text(
+                         'التطبيق مجاني لإدارة حتى 50 حسابًا.\nبعد ذلك، تحتاج إلى تفعيل一次 فقط للاستخدام غير المحدود.',
+                         textAlign: TextAlign.center,
+                         style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.5),
+                       ),
                       const SizedBox(height: 28),
                       // ─── حقل الاسم ───────────────────────────────
                       TextFormField(
@@ -362,30 +362,19 @@ class _ContactRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text('للتواصل مع المطوّر:',
+        Text('للتواصل مع المطوّر عبر واتساب:',
             style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
         const SizedBox(height: 8),
-        Row(children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () => _open(context,
-                  'https://wa.me/${SettingsService.supportWhatsApp}?text=${Uri.encodeComponent("مرحباً، أريد تفعيل دفتر الحسابات")}'),
-              icon: const Icon(Icons.chat, size: 16, color: Color(0xFF25D366)),
-              label: const Text('واتساب',
-                  style: TextStyle(color: Color(0xFF25D366), fontSize: 13)),
-            ),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _open(context,
+                'https://wa.me/${SettingsService.supportWhatsApp}?text=${Uri.encodeComponent("مرحباً، أريد تفعيل دفتر الحسابات")}'),
+            icon: const Icon(Icons.chat, size: 16, color: Color(0xFF25D366)),
+            label: const Text('مراسلة على واتساب',
+                style: TextStyle(color: Color(0xFF25D366), fontSize: 13)),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () =>
-                  _open(context, SettingsService.supportTelegram),
-              icon: const Icon(Icons.send, size: 16, color: Color(0xFF0088CC)),
-              label: const Text('تيليغرام',
-                  style: TextStyle(color: Color(0xFF0088CC), fontSize: 13)),
-            ),
-          ),
-        ]),
+        ),
       ],
     );
   }

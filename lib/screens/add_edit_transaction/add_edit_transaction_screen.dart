@@ -276,11 +276,13 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                 labelText: 'المبلغ *',
                 prefixIcon: Icon(Icons.monetization_on),
               ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'المبلغ مطلوب';
-                if (double.tryParse(v.trim()) == null) return 'أدخل رقماً صحيحاً';
-                return null;
-              },
+             validator: (v) {
+                 if (v == null || v.trim().isEmpty) return 'المبلغ مطلوب';
+                 final amount = double.tryParse(v.trim());
+                 if (amount == null) return 'أدخل رقماً صحيحاً';
+                 if (amount <= 0) return 'أدخل مبلغاً أكبر من صفر';
+                 return null;
+               },
             ),
             const SizedBox(height: 12),
 

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/services/activation_service.dart';
 import '../../data/models/currency.dart';
 import '../../data/models/customer.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../providers/app_provider.dart';
-import '../../core/helpers/customer_helper.dart';
 import '../../core/helpers/format_helper.dart';
+import '../activation/activation_screen.dart';
 import '../customer_details/customer_details_screen.dart';
 import '../add_edit_customer/add_edit_customer_screen.dart';
 
@@ -127,6 +128,48 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
         const SnackBar(content: Text('تعذر حذف العميل')),
       );
     }
+  }
+
+  // ─── فحص الحد المجاني (50 عميل) ────────────────────────────────────────────
+  /// يُرجع true إذا مُسموح بالإضافة، false إذا وصل الحد وعُرض الـ Dialog.
+  Future<bool> _checkCanAddCustomer() async {
+    final activated = await ActivationService().isActivated();
+    if (activated) return true;
+
+    if (!mounted) return false;
+    final dbHelper = context.read<AppProvider>().dbHelper;
+    final total = await CustomerRepository(dbHelper).count();
+    if (!mounted) return false;
+
+    if (total < 50) return true;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('وصلت للحد المجاني'),
+        content: const Text(
+          'وصلت للحد المجاني 50 حساب.\nيرجى تفعيل التطبيق للمتابعة.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('لاحقاً'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ActivationScreen()),
+              );
+            },
+            child: const Text('تفعيل الآن'),
+          ),
+        ],
+      ),
+    );
+    return false;
   }
 
   /// بحث فوري + ترتيب فقط — بدون فلاتر إضافية
@@ -320,14 +363,18 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
       floatingActionButton: FloatingActionButton(
         tooltip: 'إضافة عميل',
         onPressed: () async {
+          // فحص الحد المجاني قبل فتح شاشة الإضافة
+          final canAdd = await _checkCanAddCustomer();
+          if (!context.mounted) return;
+          if (!canAdd) return;
+
           final result = await Navigator.push<Object?>(
             context,
             MaterialPageRoute(
                 builder: (_) => const AddEditCustomerScreen()),
           );
-          if (!mounted) return;
+          if (!context.mounted) return;
           if (result is Customer) {
-            if (!context.mounted) return;
             await Navigator.push<bool>(
               context,
               MaterialPageRoute(
@@ -439,49 +486,79 @@ class _CustomerTile extends StatelessWidget {
     required this.onDelete,
   });
 
+  // ─── تنسيق تاريخ آخر حركة ────────────────────────────────────────────────
+  String _formatLastTx(DateTime date) {
+    final now  = DateTime.now();
+    final diff = DateTime(now.year, now.month, now.day)
+        .difference(DateTime(date.year, date.month, date.day))
+        .inDays;
+    if (diff == 0) return 'اليوم';
+    if (diff == 1) return 'أمس';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final groupName = safeGroupName(item.customer);
     final balance = item.balance;
-    final isZero = balance == 0;
-    final color = isZero
-        ? Colors.grey
+    final isZero  = balance == 0;
+
+    final avatarBg = isZero
+        ? Colors.grey.shade400
         : balance > 0
             ? const Color(0xFF2E7D32)
             : const Color(0xFFC62828);
 
+    final balanceColor = isZero
+        ? Colors.grey.shade500
+        : balance > 0
+            ? const Color(0xFF1B5E20)
+            : const Color(0xFFB71C1C);
+
+    // ─── سطر الملخص الثانوي ─────────────────────────────────────────────────
+    final parts = <String>[];
+    if (item.txCount > 0) parts.add('${item.txCount} حركة');
+    if (item.lastTxDate != null) parts.add('آخرها ${_formatLastTx(item.lastTxDate!)}');
+    final subtitle = parts.isEmpty ? 'لا توجد حركات بعد' : parts.join(' · ');
+
     return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
       child: ListTile(
         onTap: onTap,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        // ─── الأفاتار ──────────────────────────────────────────────
         leading: CircleAvatar(
-          backgroundColor: color.withValues(alpha: 0.15),
+          radius: 20,
+          backgroundColor: avatarBg.withValues(alpha: 0.14),
           child: Text(
             item.customer.name.isNotEmpty ? item.customer.name[0] : '؟',
-            style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: avatarBg,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
           ),
         ),
-        title: Text(item.customer.name,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (item.customer.gsm != null && item.customer.gsm!.isNotEmpty)
-              Text(
-                item.customer.gsm!,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-              ),
-            if (groupName != null)
-              Text(
-                'المجموعة: $groupName',
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-              ),
-            if (item.txCount > 0)
-              Text(
-                '${item.txCount} حركة',
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-              ),
-          ],
+        // ─── الاسم ─────────────────────────────────────────────────
+        title: Text(
+          item.customer.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
         ),
+        // ─── الملخص (حركات + آخر تاريخ) ────────────────────────────
+        subtitle: Text(
+          subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+        ),
+        // ─── الرصيد + قائمة الخيارات ────────────────────────────────
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -492,41 +569,42 @@ class _CustomerTile extends StatelessWidget {
                 Text(
                   FormatHelper.formatAmount(balance),
                   style: TextStyle(
-                      color: color, fontWeight: FontWeight.bold, fontSize: 15),
+                    color: balanceColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
                 ),
-                Text(currencyName,
-                    style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                Text(
+                  currencyName,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
+                ),
               ],
             ),
+            const SizedBox(width: 2),
             PopupMenuButton<String>(
-              tooltip: 'خيارات العميل',
-              onSelected: (value) {
-                if (value == 'edit') {
-                  onEdit();
-                } else if (value == 'delete') {
-                  onDelete();
-                }
+              icon: Icon(Icons.more_vert,
+                  size: 20, color: Colors.grey.shade400),
+              tooltip: 'خيارات',
+              onSelected: (v) {
+                if (v == 'edit') onEdit();
+                if (v == 'delete') onDelete();
               },
               itemBuilder: (_) => const [
                 PopupMenuItem<String>(
                   value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit_outlined, size: 18),
-                      SizedBox(width: 8),
-                      Text('تعديل العميل'),
-                    ],
-                  ),
+                  child: Row(children: [
+                    Icon(Icons.edit_outlined, size: 18),
+                    SizedBox(width: 8),
+                    Text('تعديل'),
+                  ]),
                 ),
                 PopupMenuItem<String>(
                   value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('حذف العميل'),
-                    ],
-                  ),
+                  child: Row(children: [
+                    Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('حذف', style: TextStyle(color: Colors.red)),
+                  ]),
                 ),
               ],
             ),
