@@ -21,6 +21,9 @@ class AppConstants {
     'usd': 'دولار',
   };
 
+  // الحد الأقصى للعملاء في النسخة المجانية
+  static const int trialCustomerLimit = 150;
+
   // لاحقة ملف النسخة الاحتياطية
   static const String backupPrefix = 'daftar_backup_';
   static const String backupExtension = '.db';

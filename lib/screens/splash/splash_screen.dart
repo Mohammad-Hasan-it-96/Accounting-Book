@@ -1,8 +1,11 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/pin_service.dart';
+import '../../data/repositories/customer_repository.dart';
+import '../../providers/app_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../activation/activation_screen.dart';
 import '../home/home_screen.dart';
@@ -54,19 +57,25 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _init() async {
     // كل المهام تعمل بالتوازي — لا انتظار متسلسل
     final results = await Future.wait<dynamic>([
-      context.read<ThemeProvider>().load(),              // [0] تحميل الثيم
-      ActivationService().isActivated(),                  // [1] هل التطبيق مفعّل؟
-      PinService().isPinEnabled(),                        // [2] هل قفل PIN مفعّل؟
-      Future.delayed(const Duration(milliseconds: 800)), // [3] حد أدنى للعرض
+      context.read<ThemeProvider>().load(),                                        // [0] تحميل الثيم
+      ActivationService().isActivated(),                                            // [1] هل التطبيق مفعّل؟
+      PinService().isPinEnabled(),                                                  // [2] هل قفل PIN مفعّل؟
+      Future.delayed(const Duration(milliseconds: 800)),                           // [3] حد أدنى للعرض
+      CustomerRepository(context.read<AppProvider>().dbHelper).count(),            // [4] عدد العملاء
     ]);
 
     if (!mounted) return;
 
-    final isActivated = results[1] as bool;
-    final pinEnabled = results[2] as bool;
+    final isActivated   = results[1] as bool;
+    final pinEnabled    = results[2] as bool;
+    final customerCount = results[4] as int;
+
+    // النسخة التجريبية: لا يُطلب التفعيل حتى يصل عدد العملاء إلى الحد المجاني
+    final needsActivation = !isActivated &&
+        customerCount >= AppConstants.trialCustomerLimit;
 
     Widget destination =
-        isActivated ? const HomeScreen() : const ActivationScreen();
+        needsActivation ? const ActivationScreen() : const HomeScreen();
 
     // إذا كان قفل PIN مفعّلاً، اعرض شاشة القفل أولاً
     if (pinEnabled && isActivated) {

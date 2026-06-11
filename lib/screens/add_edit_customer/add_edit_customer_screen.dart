@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/services/activation_service.dart';
 import '../../data/models/customer.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
-import '../../core/constants/app_constants.dart';
+import '../activation/activation_screen.dart';
 
 class _LookupItem {
   final int id;
@@ -93,6 +95,41 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
     );
 
     if (widget.customer == null) {
+      // التحقق من الحد المجاني قبل الإضافة
+      final count     = await repo.count();
+      final activated = await ActivationService().isActivated();
+      if (!activated && count >= AppConstants.trialCustomerLimit) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        final go = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('وصلت إلى الحد المجاني'),
+            content: Text(
+              'يمكنك إضافة حتى ${AppConstants.trialCustomerLimit} عميلاً مجاناً.\n'
+              'فعّل التطبيق للاستمرار بدون حدود.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('لاحقاً'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('تفعيل الآن'),
+              ),
+            ],
+          ),
+        );
+        if (go == true && mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ActivationScreen()),
+          );
+        }
+        return;
+      }
+
       final newId = await repo.insert(customer);
       if (!mounted) return;
       Navigator.pop(context, customer.copyWith(id: newId));

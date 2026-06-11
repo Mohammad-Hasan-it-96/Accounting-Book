@@ -17,10 +17,7 @@ void main() {
             context: 'FlutterError');
       };
 
-      await Workmanager().initialize(
-        callbackDispatcher,
-        isInDebugMode: false,
-      );
+      await Workmanager().initialize(callbackDispatcher);
 
       // Re-register periodic task if previously enabled
       final autoBackupOn = await BackupSchedulerService.isEnabled();
