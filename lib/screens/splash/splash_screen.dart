@@ -2,9 +2,11 @@
 import 'package:provider/provider.dart';
 
 import '../../core/services/activation_service.dart';
+import '../../core/services/pin_service.dart';
 import '../../providers/theme_provider.dart';
 import '../activation/activation_screen.dart';
 import '../home/home_screen.dart';
+import '../lock/lock_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -52,21 +54,37 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _init() async {
     // كل المهام تعمل بالتوازي — لا انتظار متسلسل
     final results = await Future.wait<dynamic>([
-      context.read<ThemeProvider>().load(),     // [0] تحميل الثيم
-      ActivationService().isActivated(),         // [1] هل التطبيق مفعّل؟
-      Future.delayed(const Duration(milliseconds: 800)), // [2] حد أدنى للعرض
+      context.read<ThemeProvider>().load(),              // [0] تحميل الثيم
+      ActivationService().isActivated(),                  // [1] هل التطبيق مفعّل؟
+      PinService().isPinEnabled(),                        // [2] هل قفل PIN مفعّل؟
+      Future.delayed(const Duration(milliseconds: 800)), // [3] حد أدنى للعرض
     ]);
 
     if (!mounted) return;
 
     final isActivated = results[1] as bool;
+    final pinEnabled = results[2] as bool;
+
+    Widget destination =
+        isActivated ? const HomeScreen() : const ActivationScreen();
+
+    // إذا كان قفل PIN مفعّلاً، اعرض شاشة القفل أولاً
+    if (pinEnabled && isActivated) {
+      final unlocked = await Navigator.push<bool>(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (_, _, _) => const LockScreen(),
+          transitionDuration: Duration.zero,
+        ),
+      );
+      if (unlocked != true || !mounted) return;
+    }
 
     // انتقال Fade خفيف
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, _, _) =>
-            isActivated ? const HomeScreen() : const ActivationScreen(),
+        pageBuilder: (_, _, _) => destination,
         transitionsBuilder: (_, anim, _, child) =>
             FadeTransition(opacity: anim, child: child),
         transitionDuration: const Duration(milliseconds: 350),

@@ -1,4 +1,5 @@
-﻿import 'dart:convert';
+﻿import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:android_id/android_id.dart';
 import 'package:crypto/crypto.dart';
@@ -88,10 +89,14 @@ class ActivationService {
       return ActivationResult.error('خطأ من السيرفر (${response.statusCode}). حاول مجدداً أو تواصل مع الدعم.');
     } on SocketException {
       return ActivationResult.error('لا يوجد اتصال بالإنترنت. تحقق من الاتصال وحاول مجدداً.');
+    } on TimeoutException {
+      return ActivationResult.error('انتهت مهلة الاتصال. حاول مجدداً.');
+    } on FormatException {
+      return ActivationResult.error('استجابة غير متوقعة من الخادم.');
     } on http.ClientException {
       return ActivationResult.error('تعذر الوصول إلى السيرفر. تحقق من الاتصال.');
-    } on Exception catch (e) {
-      return ActivationResult.error('خطأ: $e');
+    } on Exception {
+      return ActivationResult.error('حدث خطأ غير متوقع. حاول مجدداً.');
     }
   }
   // ─── التحقق من حالة التفعيل على السيرفر ─────────────────────────────────
@@ -118,8 +123,12 @@ class ActivationService {
       return ActivationResult.error('تعذر التحقق (${response.statusCode}). حاول لاحقاً.');
     } on SocketException {
       return ActivationResult.error('لا يوجد اتصال بالإنترنت.');
-    } on Exception catch (e) {
-      return ActivationResult.error('خطأ: $e');
+    } on TimeoutException {
+      return ActivationResult.error('انتهت مهلة الاتصال. حاول مجدداً.');
+    } on FormatException {
+      return ActivationResult.error('استجابة غير متوقعة من الخادم.');
+    } on Exception {
+      return ActivationResult.error('حدث خطأ غير متوقع. حاول مجدداً.');
     }
   }
   Future<void> _markActivated() async {

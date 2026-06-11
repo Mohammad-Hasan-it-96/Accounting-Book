@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // ─── حالة التفعيل ─────────────────────────────────────────────────────────
   bool _isActivated = false;
   int  _customerCount = 0;
+  bool _backupInProgress = false;
 
   @override
   void initState() {
@@ -45,16 +46,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ─── تحميل حالة التفعيل ───────────────────────────────────────────────────
   Future<void> _loadActivationStatus() async {
-    final activated = await ActivationService().isActivated();
-    if (!mounted) return;
-    if (activated) {
-      setState(() { _isActivated = true; _customerCount = 0; });
-      return;
+    try {
+      final activated = await ActivationService().isActivated();
+      if (!mounted) return;
+      if (activated) {
+        setState(() { _isActivated = true; _customerCount = 0; });
+        return;
+      }
+      final dbHelper = context.read<AppProvider>().dbHelper;
+      final count = await CustomerRepository(dbHelper).count();
+      if (!mounted) return;
+      setState(() { _isActivated = false; _customerCount = count; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _isActivated = false; _customerCount = 0; });
     }
-    final dbHelper = context.read<AppProvider>().dbHelper;
-    final count = await CustomerRepository(dbHelper).count();
-    if (!mounted) return;
-    setState(() { _isActivated = false; _customerCount = count; });
   }
 
   // ─── فحص التحديث عند بدء الشاشة ─────────────────────────────────────────
@@ -68,11 +74,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ─── استيراد نسخة احتياطية ───────────────────────────────────────────────
   Future<void> _importBackup() async {
+    setState(() => _backupInProgress = true);
     final result = await FilePicker.platform.pickFiles(
       type: FileType.any,
       allowMultiple: false,
     );
-    if (result == null || result.files.single.path == null) return;
+    if (result == null || result.files.single.path == null) {
+      if (mounted) setState(() => _backupInProgress = false);
+      return;
+    }
     final path = result.files.single.path!;
     if (!mounted) return;
 
@@ -94,7 +104,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
-    if (confirm != true) return;
+    if (confirm != true) {
+      if (mounted) setState(() => _backupInProgress = false);
+      return;
+    }
     if (!mounted) return;
 
     final provider = context.read<AppProvider>();
@@ -103,28 +116,33 @@ class _HomeScreenState extends State<HomeScreen> {
     final ok = await provider.dbHelper.importDatabase(path);
     if (!mounted) return;
     if (!ok) {
+      setState(() => _backupInProgress = false);
       _showSnack('تعذر استيراد النسخة الاحتياطية', isError: true);
       return;
     }
     final valid = await provider.dbHelper.validateTables();
     if (!mounted) return;
     if (!valid) {
+      setState(() => _backupInProgress = false);
       _showSnack('الملف غير متوافق: الجداول أو الأعمدة الأساسية ناقصة', isError: true);
       return;
     }
     await provider.reload();
     if (!mounted) return;
+    setState(() => _backupInProgress = false);
     _showSnack('تم استيراد النسخة الاحتياطية بنجاح');
     _loadActivationStatus();
   }
 
   // ─── تصدير نسخة احتياطية ─────────────────────────────────────────────────
   Future<void> _exportBackup() async {
+    setState(() => _backupInProgress = true);
     final provider = context.read<AppProvider>();
     final fileName = FormatHelper.backupFileName();
     final path = await provider.dbHelper.exportDatabase(fileName);
     if (!mounted) return;
     if (path == null) {
+      setState(() => _backupInProgress = false);
       _showSnack('تعذر تصدير النسخة الاحتياطية', isError: true);
       return;
     }
@@ -133,6 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
       text: 'نسخة احتياطية - دفتر حسابات',
     );
     if (!mounted) return;
+    setState(() => _backupInProgress = false);
     _showSnack('تم تصدير النسخة الاحتياطية بنجاح');
   }
 
@@ -197,6 +216,24 @@ class _HomeScreenState extends State<HomeScreen> {
             isActivated: _isActivated,
             customerCount: _customerCount,
           ),
+          if (provider.hasError)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      size: 14, color: Colors.orange.shade700),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'تعذر تحميل العملات. أعد تشغيل التطبيق.',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.orange.shade700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           const SizedBox(height: 10),
 
           // ── بحث سريع ────────────────────────────────────────────
@@ -281,6 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _BackupCard(
             onImport: _importBackup,
             onExport: _exportBackup,
+            inProgress: _backupInProgress,
           ),
 
           const SizedBox(height: 20),
@@ -425,7 +463,12 @@ class _BookButton extends StatelessWidget {
 class _BackupCard extends StatelessWidget {
   final VoidCallback onImport;
   final VoidCallback onExport;
-  const _BackupCard({required this.onImport, required this.onExport});
+  final bool inProgress;
+  const _BackupCard({
+    required this.onImport,
+    required this.onExport,
+    this.inProgress = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -435,44 +478,54 @@ class _BackupCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: Colors.grey.shade200),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(
-          children: [
-            Icon(Icons.save_outlined,
-                size: 18, color: Colors.grey.shade500),
-            const SizedBox(width: 8),
-            Text(
-              'النسخ الاحتياطي',
-              style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w600),
+      child: Column(
+        children: [
+          if (inProgress)
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(12)),
+              child: const LinearProgressIndicator(minHeight: 3),
             ),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: onImport,
-              icon: const Icon(Icons.upload_file, size: 16),
-              label: const Text('استيراد'),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey.shade700,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                Icon(Icons.save_outlined,
+                    size: 18, color: Colors.grey.shade500),
+                const SizedBox(width: 8),
+                Text(
+                  'النسخ الاحتياطي',
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w600),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: inProgress ? null : onImport,
+                  icon: const Icon(Icons.upload_file, size: 16),
+                  label: const Text('استيراد'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey.shade700,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                TextButton.icon(
+                  onPressed: inProgress ? null : onExport,
+                  icon: const Icon(Icons.download_outlined, size: 16),
+                  label: const Text('تصدير'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey.shade700,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 4),
-            TextButton.icon(
-              onPressed: onExport,
-              icon: const Icon(Icons.download_outlined, size: 16),
-              label: const Text('تصدير'),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey.shade700,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

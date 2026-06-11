@@ -7,6 +7,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/services/activation_service.dart';
+import '../../core/services/backup_scheduler_service.dart';
+import '../../core/services/pin_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/widgets/update_dialog.dart';
@@ -16,6 +18,7 @@ import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../providers/theme_provider.dart';
 import '../activation/activation_screen.dart';
+import '../privacy/privacy_policy_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -36,6 +39,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _loadingInfo       = true;
   bool _checkingUpdate    = false;
   bool _recheckingActivation = false;
+  bool _pinEnabled        = false;
+  bool _autoBackupEnabled = false;
 
   @override
   void initState() {
@@ -51,6 +56,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
        ActivationService().getDeviceId(),
        ActivationService().isActivated(),
        CustomerRepository(context.read<AppProvider>().dbHelper).getAll(),
+       PinService().isPinEnabled(),
+       BackupSchedulerService.isEnabled(),
      ]);
      if (!mounted) return;
      final pkg       = results[0] as PackageInfo;
@@ -65,6 +72,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
        _deviceId     = device;
        _isActivated  = activated;
        _customerCount = customers.length;
+       _pinEnabled   = results[5] as bool;
+       _autoBackupEnabled = results[6] as bool;
        _loadingInfo  = false;
      });
    }
@@ -181,10 +190,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ElevatedButton(
             onPressed: () async {
               final url = ctrl.text.trim();
-              if (url.isNotEmpty) {
-                await SettingsService().setApiUrl(url);
-                if (mounted) setState(() => _apiUrl = url);
+              if (url.isEmpty) {
+                if (ctx.mounted) Navigator.pop(ctx);
+                return;
               }
+              final uri = Uri.tryParse(url);
+              if (uri == null || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('رابط غير صالح. يجب أن يبدأ بـ http:// أو https://'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+                return;
+              }
+              await SettingsService().setApiUrl(url);
+              if (mounted) setState(() => _apiUrl = url);
               if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('حفظ'),
@@ -192,6 +215,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  // ─── إعداد قفل PIN ────────────────────────────────────────────────────────
+  Future<void> _configurePinLock(bool enable) async {
+    if (!enable) {
+      await PinService().disablePin();
+      if (mounted) setState(() => _pinEnabled = false);
+      return;
+    }
+    final ctrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تعيين رمز القفل'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'رمز PIN (4 أرقام)'),
+            ),
+            TextField(
+              controller: confirmCtrl,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'تأكيد الرمز'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء')),
+          ElevatedButton(
+            onPressed: () {
+              if (ctrl.text.length < 4) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('أدخل 4 أرقام على الأقل')),
+                );
+                return;
+              }
+              if (ctrl.text != confirmCtrl.text) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('الرمزان غير متطابقين')),
+                );
+                return;
+              }
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    if (result != true || !mounted) return;
+    await PinService().setPin(ctrl.text.trim());
+    if (mounted) {
+      setState(() => _pinEnabled = true);
+      _showSnack('تم تفعيل قفل PIN بنجاح', isSuccess: true);
+    }
+  }
+
+  // ─── تبديل النسخ الاحتياطي التلقائي ──────────────────────────────────────
+  Future<void> _toggleAutoBackup(bool enable) async {
+    if (enable) {
+      await BackupSchedulerService.enable();
+    } else {
+      await BackupSchedulerService.disable();
+    }
+    if (mounted) setState(() => _autoBackupEnabled = enable);
   }
 
   // ─── فتح رابط خارجي ───────────────────────────────────────────────────────
@@ -317,9 +415,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                  const Divider(),
 
                  // ──────────────────────────────────────────────────────────
+                 // الأمان
+                 // ──────────────────────────────────────────────────────────
+                 _SectionHeader(title: 'الأمان'),
+                 SwitchListTile(
+                   secondary: const Icon(Icons.pin_outlined),
+                   title: const Text('قفل PIN'),
+                   subtitle: Text(_pinEnabled ? 'مفعّل' : 'معطّل'),
+                   value: _pinEnabled,
+                   onChanged: _configurePinLock,
+                 ),
+                 const Divider(),
+
+                 // ──────────────────────────────────────────────────────────
                  // البيانات
                  // ──────────────────────────────────────────────────────────
                  _SectionHeader(title: 'البيانات'),
+                 SwitchListTile(
+                   secondary: const Icon(Icons.backup_outlined),
+                   title: const Text('النسخ الاحتياطي التلقائي'),
+                   subtitle: Text(_autoBackupEnabled ? 'يومياً' : 'معطّل'),
+                   value: _autoBackupEnabled,
+                   onChanged: _toggleAutoBackup,
+                 ),
                  ListTile(
                    leading: const Icon(Icons.file_copy_outlined),
                    title: const Text('تصدير الاحتياطي'),
@@ -464,6 +582,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: _confirmResetActivation,
                 ),
 
+                // ──────────────────────────────────────────────────────────
+                // قانوني
+                // ──────────────────────────────────────────────────────────
+                _SectionHeader(title: 'قانوني'),
+                ListTile(
+                  leading: const Icon(Icons.privacy_tip_outlined),
+                  title: const Text('سياسة الخصوصية'),
+                  trailing: const Icon(Icons.chevron_left),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const PrivacyPolicyScreen()),
+                  ),
+                ),
                 const SizedBox(height: 32),
               ],
             ),

@@ -144,7 +144,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
                               fontSize: 20, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 6),
                        Text(
-                         'التطبيق مجاني لإدارة حتى 50 حسابًا.\nبعد ذلك، تحتاج إلى تفعيل一次 فقط للاستخدام غير المحدود.',
+                         'التطبيق مجاني لإدارة حتى 50 حسابًا.\nبعد ذلك، يكفي التفعيل مرة واحدة للاستخدام غير المحدود.',
                          textAlign: TextAlign.center,
                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.5),
                        ),

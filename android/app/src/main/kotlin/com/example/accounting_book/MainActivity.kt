@@ -1,5 +1,6 @@
-package com.example.accounting_book
+package com.mohamad.daftarhesabat
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// FlutterFragmentActivity is required for local_auth biometric support
+class MainActivity : FlutterFragmentActivity()

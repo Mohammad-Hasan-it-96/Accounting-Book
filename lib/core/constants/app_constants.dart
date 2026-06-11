@@ -2,7 +2,7 @@
 class AppConstants {
   // اسم ملف قاعدة البيانات
   static const String dbName = 'daftar_hesabat.db';
-  static const int dbVersion = 1;
+  static const int dbVersion = 2;
 
   // أسماء الجداول
   static const String tableCustomers = 'customers';

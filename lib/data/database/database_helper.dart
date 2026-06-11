@@ -25,11 +25,14 @@ class DatabaseHelper {
       path,
       version: AppConstants.dbVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+      onOpen: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
     );
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // إنشاء الجداول فقط إذا لم تكن موجودة (قاعدة بيانات جديدة)
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableCustomers} (
         ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,12 +51,12 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.tableTransactions} (
         ID INTEGER PRIMARY KEY AUTOINCREMENT,
-        cus_id INTEGER,
+        cus_id INTEGER REFERENCES ${AppConstants.tableCustomers}(ID),
         "in" INTEGER,
         "out" REAL,
         date_ TEXT,
         remarks TEXT,
-        curr_id INTEGER,
+        curr_id INTEGER REFERENCES ${AppConstants.tableCurrency}(ID),
         t_cus_id INTEGER,
         now_ TEXT
       )
@@ -70,31 +73,64 @@ class DatabaseHelper {
         name TEXT
       )
     ''');
+    await _createIndexes(db);
     // بيانات افتراضية للعملات
     await db.insert(AppConstants.tableCurrency, {'name': 'محلي'});
     await db.insert(AppConstants.tableCurrency, {'name': 'دولار'});
   }
 
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _createIndexes(db);
+    }
+  }
+
+  Future<void> _createIndexes(Database db) async {
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_tx_cus_id ON ${AppConstants.tableTransactions}(cus_id)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_tx_curr_id ON ${AppConstants.tableTransactions}(curr_id)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_tx_date ON ${AppConstants.tableTransactions}(date_)');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_cus_name ON ${AppConstants.tableCustomers}(name)');
+  }
+
   // ─── استيراد قاعدة بيانات خارجية ────────────────────────────────────────
   Future<bool> importDatabase(String sourcePath) async {
     try {
-      // إغلاق الاتصال الحالي
+      final sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) return false;
+
+      // التحقق من سلامة الملف المصدر قبل الاستبدال
+      if (!await _validateSourceDatabase(sourcePath)) return false;
+
       await closeDb();
 
       final dbPath = await getDatabasesPath();
       final targetPath = join(dbPath, AppConstants.dbName);
-
-      // نسخ الملف
-      final sourceFile = File(sourcePath);
-      if (!await sourceFile.exists()) return false;
       await sourceFile.copy(targetPath);
 
-      // إعادة الاتصال + مواءمة قواعد قديمة
       _db = await _initDb();
       await _ensureLegacyCompatibility();
       return true;
     } catch (e) {
       return false;
+    }
+  }
+
+  Future<bool> _validateSourceDatabase(String path) async {
+    Database? tempDb;
+    try {
+      tempDb = await openDatabase(path, readOnly: true);
+      final result = await tempDb.rawQuery('PRAGMA integrity_check');
+      if (result.isEmpty) return false;
+      final status = result.first.values.first?.toString().toLowerCase();
+      return status == 'ok';
+    } catch (_) {
+      return false;
+    } finally {
+      await tempDb?.close();
     }
   }
 

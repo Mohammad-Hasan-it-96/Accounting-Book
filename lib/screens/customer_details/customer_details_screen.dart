@@ -10,6 +10,7 @@ import '../../providers/app_provider.dart';
 import '../../core/helpers/customer_helper.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../core/helpers/statement_helper.dart';
+import '../../core/services/pdf_service.dart';
 import '../add_edit_transaction/add_edit_transaction_screen.dart';
 
 class CustomerDetailsScreen extends StatefulWidget {
@@ -268,6 +269,29 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
              color: Theme.of(context).primaryColor,
              onPressed: () => Share.share(_buildStatement()),
            ),
+           IconButton(
+             icon: const Icon(Icons.picture_as_pdf_outlined),
+             tooltip: 'تصدير PDF',
+             color: Theme.of(context).primaryColor,
+             onPressed: () async {
+               final messenger = ScaffoldMessenger.of(context);
+               try {
+                 await PdfService.shareStatement(
+                   customer: widget.customer,
+                   currency: widget.currency,
+                   transactions: _transactions,
+                   balance: _balance,
+                 );
+               } catch (_) {
+                 messenger.showSnackBar(
+                   const SnackBar(
+                     content: Text('تعذر إنشاء ملف PDF'),
+                     behavior: SnackBarBehavior.floating,
+                   ),
+                 );
+               }
+             },
+           ),
         ],
       ),
       body: _loading
@@ -293,7 +317,9 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: Text(
-                         'ملخص مفilter',
+                        'ملخص مفلتر'
+                        '${_fromDate != null ? ': من ${FormatHelper.formatDateFromDateTime(_fromDate!)}' : ''}'
+                        '${_toDate != null ? ' — ${FormatHelper.formatDateFromDateTime(_toDate!)}' : ''}',
                         style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                       ),
                     ),

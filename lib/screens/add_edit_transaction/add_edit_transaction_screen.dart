@@ -206,6 +206,36 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
       );
     }
 
+    if (_customers.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: Text(isEdit ? 'تعديل حركة' : 'إضافة حركة')),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.people_outline, size: 64, color: Colors.grey.shade300),
+              const SizedBox(height: 16),
+              Text(
+                'لا يوجد عملاء',
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'أضف عميلاً أولاً ثم أضف الحركة',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('العودة'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(isEdit ? 'تعديل حركة' : 'إضافة حركة'),

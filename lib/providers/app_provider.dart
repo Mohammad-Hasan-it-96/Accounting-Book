@@ -11,9 +11,11 @@ class AppProvider extends ChangeNotifier {
 
   List<Currency> _currencies = [];
   bool _loading = false;
+  bool _hasError = false;
 
   List<Currency> get currencies => _currencies;
   bool get loading => _loading;
+  bool get hasError => _hasError;
 
   /// العملة الليرة (أول عملة يكون displayName == 'ليرة')
   Currency? get liraCurrency =>
@@ -31,12 +33,14 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> loadCurrencies() async {
     _loading = true;
+    _hasError = false;
     notifyListeners();
     try {
       final repo = CurrencyRepository(dbHelper);
       _currencies = await repo.getAll();
     } catch (_) {
       _currencies = [];
+      _hasError = true;
     }
     _loading = false;
     notifyListeners();
