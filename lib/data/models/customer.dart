@@ -6,6 +6,8 @@ class Customer {
   final int? gId;
   final int? cusTypeId;
   final String? groupName;
+  final String? notes;
+  final bool isArchived;
 
   const Customer({
     this.id,
@@ -14,16 +16,20 @@ class Customer {
     this.gId,
     this.cusTypeId,
     this.groupName,
+    this.notes,
+    this.isArchived = false,
   });
 
   factory Customer.fromMap(Map<String, dynamic> map) {
     return Customer(
-      id:        _toInt(map['ID']),
-      name:      map['name']?.toString() ?? '',
-      gsm:       map['gsm']?.toString(),
-      gId:       _toInt(map['g_id']),
-      cusTypeId: _toInt(map['cus_type_id']),
-      groupName: map['group_name']?.toString(),
+      id:         _toInt(map['ID']),
+      name:       map['name']?.toString() ?? '',
+      gsm:        map['gsm']?.toString(),
+      gId:        _toInt(map['g_id']),
+      cusTypeId:  _toInt(map['cus_type_id']),
+      groupName:  map['group_name']?.toString(),
+      notes:      map['notes']?.toString(),
+      isArchived: (_toInt(map['is_archived']) ?? 0) == 1,
     );
   }
 
@@ -34,6 +40,8 @@ class Customer {
       'gsm': gsm,
       'g_id': gId,
       'cus_type_id': cusTypeId,
+      'notes': notes,
+      'is_archived': isArchived ? 1 : 0,
     };
   }
 
@@ -44,14 +52,18 @@ class Customer {
     int? gId,
     int? cusTypeId,
     String? groupName,
+    String? notes,
+    bool? isArchived,
   }) {
     return Customer(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      gsm: gsm ?? this.gsm,
-      gId: gId ?? this.gId,
-      cusTypeId: cusTypeId ?? this.cusTypeId,
-      groupName: groupName ?? this.groupName,
+      id:         id ?? this.id,
+      name:       name ?? this.name,
+      gsm:        gsm ?? this.gsm,
+      gId:        gId ?? this.gId,
+      cusTypeId:  cusTypeId ?? this.cusTypeId,
+      groupName:  groupName ?? this.groupName,
+      notes:      notes ?? this.notes,
+      isArchived: isArchived ?? this.isArchived,
     );
   }
 }
@@ -64,4 +76,3 @@ int? _toInt(dynamic v) {
   if (v is String) return int.tryParse(v.trim());
   return null;
 }
-

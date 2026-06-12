@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import '../../core/services/pin_service.dart';
@@ -11,23 +12,47 @@ class LockScreen extends StatefulWidget {
 
 class _LockScreenState extends State<LockScreen> {
   final _localAuth = LocalAuthentication();
-  String _entered = '';
-  String? _error;
-  bool _biometricAvailable = false;
+  String    _entered           = '';
+  String?   _error;
+  bool      _biometricAvailable = false;
+  DateTime? _lockedUntil;
+  Timer?    _lockTimer;
 
   @override
   void initState() {
     super.initState();
-    _checkBiometric();
+    _checkLockAndBiometric();
   }
 
-  Future<void> _checkBiometric() async {
+  @override
+  void dispose() {
+    _lockTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkLockAndBiometric() async {
+    final lockedUntil = await PinService().lockedUntil();
+    if (mounted) {
+      setState(() => _lockedUntil = lockedUntil);
+      if (lockedUntil != null) _startLockCountdown();
+    }
+
     try {
-      final canCheck = await _localAuth.canCheckBiometrics;
+      final canCheck   = await _localAuth.canCheckBiometrics;
       final isSupported = await _localAuth.isDeviceSupported();
       if (mounted) setState(() => _biometricAvailable = canCheck && isSupported);
-      if (_biometricAvailable) _tryBiometric();
+      if (_biometricAvailable && lockedUntil == null) _tryBiometric();
     } catch (_) {}
+  }
+
+  void _startLockCountdown() {
+    _lockTimer?.cancel();
+    _lockTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      final still = await PinService().lockedUntil();
+      if (!mounted) return;
+      setState(() => _lockedUntil = still);
+      if (still == null) _lockTimer?.cancel();
+    });
   }
 
   Future<void> _tryBiometric() async {
@@ -39,11 +64,15 @@ class _LockScreenState extends State<LockScreen> {
           stickyAuth: true,
         ),
       );
-      if (authenticated && mounted) Navigator.pop(context, true);
+      if (authenticated && mounted) {
+        await PinService().clearFailedAttempts();
+        if (mounted) Navigator.pop(context, true);
+      }
     } catch (_) {}
   }
 
   void _pressDigit(String digit) {
+    if (_lockedUntil != null) return;
     if (_entered.length >= 6) return;
     setState(() {
       _entered += digit;
@@ -61,58 +90,86 @@ class _LockScreenState extends State<LockScreen> {
     final ok = await PinService().verifyPin(_entered);
     if (!mounted) return;
     if (ok) {
-      Navigator.pop(context, true);
+      await PinService().clearFailedAttempts();
+      if (mounted) Navigator.pop(context, true);
     } else {
+      await PinService().recordFailedAttempt();
+      final lockedUntil = await PinService().lockedUntil();
+      final failed      = await PinService().getFailedAttempts();
+      if (!mounted) return;
       setState(() {
-        _error = 'رمز غير صحيح';
-        _entered = '';
+        _entered     = '';
+        _lockedUntil = lockedUntil;
+        _error = lockedUntil != null
+            ? 'تم القفل بسبب محاولات متعددة'
+            : 'رمز غير صحيح (${PinService.maxFailedAttempts - failed} محاولات متبقية)';
       });
+      if (lockedUntil != null) _startLockCountdown();
     }
+  }
+
+  String _formatCountdown(DateTime until) {
+    final diff = until.difference(DateTime.now());
+    if (diff.isNegative) return '';
+    final m = diff.inMinutes;
+    final s = diff.inSeconds % 60;
+    return m > 0 ? '$m:${s.toString().padLeft(2, '0')}' : '$s ث';
   }
 
   @override
   Widget build(BuildContext context) {
+    final isLocked = _lockedUntil != null;
     return Scaffold(
       backgroundColor: const Color(0xFF1565C0),
       body: SafeArea(
         child: Column(
           children: [
             const Spacer(),
-            const Icon(Icons.lock_outline, color: Colors.white, size: 48),
+            Icon(
+              isLocked ? Icons.lock : Icons.lock_outline,
+              color: Colors.white,
+              size: 48,
+            ),
             const SizedBox(height: 16),
-            const Text(
-              'أدخل رمز القفل',
-              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              isLocked ? 'التطبيق مقفل مؤقتاً' : 'أدخل رمز القفل',
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            if (_error != null)
+            if (isLocked)
+              Text(
+                'يُفتح خلال: ${_formatCountdown(_lockedUntil!)}',
+                style: const TextStyle(color: Colors.white70, fontSize: 16),
+              )
+            else if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 14)),
             const SizedBox(height: 24),
-            // PIN dots
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                4,
-                (i) => Container(
-                  width: 16,
-                  height: 16,
-                  margin: const EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: i < _entered.length
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.3),
+            if (!isLocked)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  4,
+                  (i) => Container(
+                    width: 16,
+                    height: 16,
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: i < _entered.length
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.3),
+                    ),
                   ),
                 ),
               ),
-            ),
             const Spacer(),
-            // Numpad
-            _NumPad(
-              onDigit: _pressDigit,
-              onDelete: _backspace,
-              onBiometric: _biometricAvailable ? _tryBiometric : null,
-            ),
+            if (!isLocked)
+              _NumPad(
+                onDigit: _pressDigit,
+                onDelete: _backspace,
+                onBiometric: _biometricAvailable ? _tryBiometric : null,
+              ),
             const SizedBox(height: 32),
           ],
         ),

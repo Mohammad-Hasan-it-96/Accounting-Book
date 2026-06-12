@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/services/activation_service.dart';
 import '../../data/models/currency.dart';
 import '../../data/models/customer.dart';
@@ -25,7 +27,9 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
   String _sortBy = 'name'; // name | balance | last_tx
 
   List<_CustomerWithBalance> _items = [];
-  bool _loading = true;
+  bool _loading      = true;
+  bool _isActivated  = true;
+  bool _showArchived = false; // إظهار العملاء المؤرشفين
 
   @override
   void initState() {
@@ -47,9 +51,17 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
       final cusRepo = CustomerRepository(dbHelper);
       final txRepo = TransactionRepository(dbHelper);
 
-      final summaries = await txRepo.getCustomerSummaries(widget.currency.id!);
-      final customers = await cusRepo.getAll();
+      final results = await Future.wait([
+        txRepo.getCustomerSummaries(widget.currency.id!),
+        cusRepo.getAll(),
+        ActivationService().isActivated(),
+      ]);
 
+      final summaries  = results[0] as Map<int?, dynamic>;
+      final customers  = results[1] as List<Customer>;
+      final activated  = results[2] as bool;
+
+      _isActivated = activated;
       _items = customers.map((c) {
         final s = summaries[c.id];
         return _CustomerWithBalance(
@@ -130,25 +142,22 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
     }
   }
 
-  // ─── فحص الحد المجاني (50 عميل) ────────────────────────────────────────────
+  // ─── فحص الحد المجاني ────────────────────────────────────────────────────
   /// يُرجع true إذا مُسموح بالإضافة، false إذا وصل الحد وعُرض الـ Dialog.
   Future<bool> _checkCanAddCustomer() async {
-    final activated = await ActivationService().isActivated();
-    if (activated) return true;
+    if (_isActivated) return true;
 
     if (!mounted) return false;
-    final dbHelper = context.read<AppProvider>().dbHelper;
-    final total = await CustomerRepository(dbHelper).count();
-    if (!mounted) return false;
+    final total = _items.length;
 
-    if (total < 50) return true;
+    if (total < AppConstants.trialCustomerLimit) return true;
 
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('وصلت للحد المجاني'),
-        content: const Text(
-          'وصلت للحد المجاني 50 حساب.\nيرجى تفعيل التطبيق للمتابعة.',
+        content: Text(
+          'وصلت للحد المجاني (${AppConstants.trialCustomerLimit} حساب).\nيرجى تفعيل التطبيق للمتابعة.',
         ),
         actions: [
           TextButton(
@@ -160,8 +169,7 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
               Navigator.pop(ctx);
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                    builder: (_) => const ActivationScreen()),
+                MaterialPageRoute(builder: (_) => const ActivationScreen()),
               );
             },
             child: const Text('تفعيل الآن'),
@@ -172,15 +180,73 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
     return false;
   }
 
-  /// بحث فوري + ترتيب فقط — بدون فلاتر إضافية
+  // ─── تصدير تقرير جميع العملاء ───────────────────────────────────────────
+  Future<void> _exportAllReport() async {
+    if (_items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لا يوجد عملاء للتصدير'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final sorted = List<_CustomerWithBalance>.from(_items)
+      ..sort((a, b) => b.balance.compareTo(a.balance));
+
+    final now = DateTime.now();
+    final dateStr =
+        '${now.day}/${now.month}/${now.year}  ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    final buf = StringBuffer();
+    buf.writeln('═══════════════════════════════════');
+    buf.writeln('   كشف أرصدة العملاء');
+    buf.writeln('   ${widget.currency.displayName}');
+    buf.writeln('   $dateStr');
+    buf.writeln('═══════════════════════════════════\n');
+
+    double totalDebt = 0;
+    double totalCredit = 0;
+    for (final item in sorted) {
+      final b = item.balance;
+      if (b > 0) totalDebt += b;
+      if (b < 0) totalCredit += b.abs();
+    }
+
+    buf.writeln('إجمالي المطلوب : ${FormatHelper.formatAmount(totalDebt)} ${widget.currency.displayName}');
+    buf.writeln('إجمالي المدفوع : ${FormatHelper.formatAmount(totalCredit)} ${widget.currency.displayName}');
+    buf.writeln('عدد العملاء   : ${_items.length}');
+    buf.writeln('───────────────────────────────────\n');
+
+    for (int i = 0; i < sorted.length; i++) {
+      final item = sorted[i];
+      final b = item.balance;
+      final label = b > 0 ? 'مطلوب' : b < 0 ? 'مدفوع' : 'مسوّى';
+      buf.writeln('${i + 1}. ${item.customer.name}');
+      if (item.customer.gsm?.isNotEmpty == true) {
+        buf.writeln('   📞 ${item.customer.gsm}');
+      }
+      buf.writeln('   ${FormatHelper.formatAmount(b.abs())} ${widget.currency.displayName} — $label');
+      buf.writeln();
+    }
+
+    buf.writeln('═══════════════════════════════════');
+    buf.writeln('دفتر الحسابات');
+
+    await Share.share(buf.toString(), subject: 'كشف أرصدة العملاء — ${widget.currency.displayName}');
+  }
+
+  /// بحث فوري + ترتيب + فلتر الأرشيف
   List<_CustomerWithBalance> get _displayed {
-    var list = _searchCtrl.text.isEmpty
-        ? List<_CustomerWithBalance>.from(_items)
-        : _items
-            .where((i) => i.customer.name
-                .toLowerCase()
-                .contains(_searchCtrl.text.toLowerCase()))
-            .toList();
+    final q = _searchCtrl.text.toLowerCase();
+    var list = _items.where((i) {
+      // فلتر الأرشيف: إخفاء المؤرشفين إلا إذا طلب المستخدم إظهارهم
+      if (!_showArchived && i.customer.isArchived) return false;
+      if (q.isEmpty) return true;
+      return i.customer.name.toLowerCase().contains(q) ||
+          (i.customer.gsm?.toLowerCase().contains(q) ?? false);
+    }).toList();
 
     if (_sortBy == 'name') {
       list.sort((a, b) => a.customer.name.compareTo(b.customer.name));
@@ -209,6 +275,13 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
       appBar: AppBar(
         title: Text('دفتر ${widget.currency.displayName}'),
         actions: [
+          // ─── تصدير تقرير العملاء ───────────────────────────────
+          if (!_loading)
+            IconButton(
+              icon: const Icon(Icons.share_outlined),
+              tooltip: 'تصدير كشف العملاء',
+              onPressed: _exportAllReport,
+            ),
           // ─── زر الترتيب ────────────────────────────────────────
           PopupMenuButton<String>(
             icon: Icon(
@@ -270,13 +343,47 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
               currencyName: widget.currency.displayName,
             ),
 
+          // ─── تحذير الاقتراب من الحد المجاني ────────────────────
+          if (!_loading && !_isActivated &&
+              _items.length >= AppConstants.trialWarningThreshold &&
+              _items.length < AppConstants.trialCustomerLimit)
+            Container(
+              color: Colors.orange.shade50,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      color: Colors.orange.shade800, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'اقتربت من الحد المجاني: ${_items.length} / ${AppConstants.trialCustomerLimit} عميل',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.orange.shade900),
+                    ),
+                  ),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                        foregroundColor: Colors.orange.shade900,
+                        padding: const EdgeInsets.symmetric(horizontal: 8)),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ActivationScreen()),
+                    ),
+                    child: const Text('تفعيل', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+            ),
+
           // ─── بحث فوري ───────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
-                hintText: 'بحث بالاسم...',
+                hintText: 'بحث بالاسم أو الهاتف...',
                 prefixIcon: const Icon(Icons.search),
                 isDense: true,
                 suffixIcon: _searchCtrl.text.isNotEmpty
@@ -292,17 +399,33 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
             ),
           ),
 
-          // ─── عداد النتائج ────────────────────────────────────────
-          if (!_loading && _searchCtrl.text.isNotEmpty)
+          // ─── فلتر الأرشيف + عداد النتائج ───────────────────────
+          if (!_loading)
             Padding(
-              padding: const EdgeInsets.only(right: 16, bottom: 4),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  '${displayed.length} نتيجة',
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.grey.shade500),
-                ),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              child: Row(
+                children: [
+                  FilterChip(
+                    label: const Text('المؤرشفون', style: TextStyle(fontSize: 12)),
+                    selected: _showArchived,
+                    avatar: Icon(
+                      Icons.archive_outlined,
+                      size: 14,
+                      color: _showArchived
+                          ? Theme.of(context).colorScheme.onPrimary
+                          : Colors.grey.shade600,
+                    ),
+                    onSelected: (v) => setState(() => _showArchived = v),
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                  ),
+                  const Spacer(),
+                  if (_searchCtrl.text.isNotEmpty || _showArchived)
+                    Text(
+                      '${displayed.length} نتيجة',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    ),
+                ],
               ),
             ),
 
@@ -353,6 +476,20 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
                               },
                               onEdit: () => _editCustomer(item.customer),
                               onDelete: () => _deleteCustomer(item.customer),
+                              onShare: () {
+                                final b = item.balance;
+                                final label = b > 0
+                                    ? 'مطلوب'
+                                    : b < 0
+                                        ? 'مدفوع'
+                                        : 'مسوّى';
+                                Share.share(
+                                  'حساب: ${item.customer.name}\n'
+                                  'الرصيد: ${FormatHelper.formatAmount(b.abs())} ${widget.currency.displayName}\n'
+                                  'الحالة: $label',
+                                  subject: 'رصيد ${item.customer.name}',
+                                );
+                              },
                             );
                           },
                         ),
@@ -477,6 +614,7 @@ class _CustomerTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onShare;
 
   const _CustomerTile({
     required this.item,
@@ -484,6 +622,7 @@ class _CustomerTile extends StatelessWidget {
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
+    required this.onShare,
   });
 
   // ─── تنسيق تاريخ آخر حركة ────────────────────────────────────────────────
@@ -518,7 +657,9 @@ class _CustomerTile extends StatelessWidget {
     final parts = <String>[];
     if (item.txCount > 0) parts.add('${item.txCount} حركة');
     if (item.lastTxDate != null) parts.add('آخرها ${_formatLastTx(item.lastTxDate!)}');
-    final subtitle = parts.isEmpty ? 'لا توجد حركات بعد' : parts.join(' · ');
+    final txSubtitle = parts.isEmpty ? 'لا توجد حركات بعد' : parts.join(' · ');
+    final notes = item.customer.notes?.trim() ?? '';
+    final hasNotes = notes.isNotEmpty;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -532,31 +673,84 @@ class _CustomerTile extends StatelessWidget {
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
         // ─── الأفاتار ──────────────────────────────────────────────
-        leading: CircleAvatar(
-          radius: 20,
-          backgroundColor: avatarBg.withValues(alpha: 0.14),
-          child: Text(
-            item.customer.name.isNotEmpty ? item.customer.name[0] : '؟',
-            style: TextStyle(
-              color: avatarBg,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+        leading: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: avatarBg.withValues(alpha: 0.14),
+              child: Text(
+                item.customer.name.isNotEmpty ? item.customer.name[0] : '؟',
+                style: TextStyle(
+                  color: avatarBg,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
             ),
-          ),
+            if (item.customer.isArchived)
+              Positioned(
+                right: -4,
+                bottom: -2,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade600,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.archive, size: 10, color: Colors.white),
+                ),
+              ),
+          ],
         ),
         // ─── الاسم ─────────────────────────────────────────────────
-        title: Text(
-          item.customer.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                item.customer.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+              ),
+            ),
+            if (item.customer.isArchived)
+              Container(
+                margin: const EdgeInsets.only(right: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'محفوظ',
+                  style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
+                ),
+              ),
+          ],
         ),
-        // ─── الملخص (حركات + آخر تاريخ) ────────────────────────────
-        subtitle: Text(
-          subtitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+        // ─── الملخص (حركات + آخر تاريخ + ملاحظات) ─────────────────
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              txSubtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+            if (hasNotes)
+              Text(
+                notes,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade400,
+                    fontStyle: FontStyle.italic),
+              ),
+          ],
         ),
         // ─── الرصيد + قائمة الخيارات ────────────────────────────────
         trailing: Row(
@@ -588,9 +782,10 @@ class _CustomerTile extends StatelessWidget {
               onSelected: (v) {
                 if (v == 'edit') onEdit();
                 if (v == 'delete') onDelete();
+                if (v == 'share') onShare();
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem<String>(
+              itemBuilder: (_) => [
+                const PopupMenuItem<String>(
                   value: 'edit',
                   child: Row(children: [
                     Icon(Icons.edit_outlined, size: 18),
@@ -598,7 +793,15 @@ class _CustomerTile extends StatelessWidget {
                     Text('تعديل'),
                   ]),
                 ),
-                PopupMenuItem<String>(
+                const PopupMenuItem<String>(
+                  value: 'share',
+                  child: Row(children: [
+                    Icon(Icons.share_outlined, size: 18),
+                    SizedBox(width: 8),
+                    Text('مشاركة الرصيد'),
+                  ]),
+                ),
+                const PopupMenuItem<String>(
                   value: 'delete',
                   child: Row(children: [
                     Icon(Icons.delete_outline, size: 18, color: Colors.red),

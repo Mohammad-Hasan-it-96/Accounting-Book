@@ -27,7 +27,7 @@ class CustomerRepository {
     return rows.map((r) => Customer.fromMap(r)).toList();
   }
 
-  /// البحث بالاسم
+  /// البحث بالاسم أو رقم الهاتف
   Future<List<Customer>> search(String query) async {
     final db = await _db;
     List<Map<String, Object?>> rows;
@@ -36,15 +36,15 @@ class CustomerRepository {
         '''SELECT c.*, g.name AS group_name
            FROM ${AppConstants.tableCustomers} c
            LEFT JOIN ${AppConstants.tableGroups} g ON g.ID = c.g_id
-           WHERE c.name LIKE ?
+           WHERE c.name LIKE ? OR c.gsm LIKE ?
            ORDER BY c.name''',
-        ['%$query%'],
+        ['%$query%', '%$query%'],
       );
     } catch (_) {
       rows = await db.query(
         AppConstants.tableCustomers,
-        where: 'name LIKE ?',
-        whereArgs: ['%$query%'],
+        where: 'name LIKE ? OR gsm LIKE ?',
+        whereArgs: ['%$query%', '%$query%'],
         orderBy: 'name',
       );
     }

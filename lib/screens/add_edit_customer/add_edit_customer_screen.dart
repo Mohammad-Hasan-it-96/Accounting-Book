@@ -27,7 +27,9 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
   late final TextEditingController _gsmCtrl;
-  bool _saving = false;
+  late final TextEditingController _notesCtrl;
+  bool _saving      = false;
+  bool _isArchived  = false;
   int? _selectedGroupId;
   int? _selectedTypeId;
   List<_LookupItem> _groups = const [];
@@ -36,10 +38,12 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.customer?.name ?? '');
-    _gsmCtrl = TextEditingController(text: widget.customer?.gsm ?? '');
+    _nameCtrl   = TextEditingController(text: widget.customer?.name ?? '');
+    _gsmCtrl    = TextEditingController(text: widget.customer?.gsm ?? '');
+    _notesCtrl  = TextEditingController(text: widget.customer?.notes ?? '');
+    _isArchived = widget.customer?.isArchived ?? false;
     _selectedGroupId = widget.customer?.gId;
-    _selectedTypeId = widget.customer?.cusTypeId;
+    _selectedTypeId  = widget.customer?.cusTypeId;
     _loadDropdownData();
   }
 
@@ -76,6 +80,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _gsmCtrl.dispose();
+    _notesCtrl.dispose();
     super.dispose();
   }
 
@@ -87,11 +92,13 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
     final repo = CustomerRepository(dbHelper);
 
     final customer = Customer(
-      id: widget.customer?.id,
-      name: _nameCtrl.text.trim(),
-      gsm: _gsmCtrl.text.trim().isEmpty ? null : _gsmCtrl.text.trim(),
-      gId: _selectedGroupId,
-      cusTypeId: _selectedTypeId,
+      id:         widget.customer?.id,
+      name:       _nameCtrl.text.trim(),
+      gsm:        _gsmCtrl.text.trim().isEmpty ? null : _gsmCtrl.text.trim(),
+      gId:        _selectedGroupId,
+      cusTypeId:  _selectedTypeId,
+      notes:      _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      isArchived: _isArchived,
     );
 
     if (widget.customer == null) {
@@ -261,6 +268,17 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
               onChanged: (v) => setState(() => _selectedGroupId = v),
             ),
             const SizedBox(height: 12),
+            // الملاحظات
+            TextFormField(
+              controller: _notesCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'ملاحظات (اختياري)',
+                prefixIcon: Icon(Icons.notes_outlined),
+                alignLabelWithHint: true,
+              ),
+            ),
+            const SizedBox(height: 12),
             // النوع
             DropdownButtonFormField<int?>(
               initialValue: _types.any((t) => t.id == _selectedTypeId)
@@ -284,6 +302,18 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
               ],
               onChanged: (v) => setState(() => _selectedTypeId = v),
             ),
+            // أرشفة (في وضع التعديل فقط)
+            if (widget.customer != null) ...[
+              const SizedBox(height: 4),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: const Icon(Icons.archive_outlined),
+                title: const Text('أرشفة العميل'),
+                subtitle: const Text('يُخفى عن القوائم الرئيسية'),
+                value: _isArchived,
+                onChanged: (v) => setState(() => _isArchived = v),
+              ),
+            ],
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,

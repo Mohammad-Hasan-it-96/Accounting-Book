@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/constants/app_constants.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../core/services/activation_service.dart';
@@ -371,7 +372,7 @@ class _ActivationBanner extends StatelessWidget {
     }
 
     // غير مفعّل — اعرض العداد
-    final remaining = 50 - customerCount;
+    final remaining = AppConstants.trialCustomerLimit - customerCount;
     final isNearLimit = remaining <= 10;
     final color = isNearLimit ? Colors.orange : Colors.blueGrey;
 
@@ -390,7 +391,7 @@ class _ActivationBanner extends StatelessWidget {
               Icon(Icons.lock_open_outlined, size: 14, color: color.shade700),
               const SizedBox(width: 4),
               Text(
-                'مجاني: $customerCount / 50',
+                'مجاني: $customerCount / ${AppConstants.trialCustomerLimit}',
                 style: TextStyle(
                   fontSize: 12,
                   color: color.shade700,

@@ -39,7 +39,9 @@ class DatabaseHelper {
         name TEXT NOT NULL,
         gsm TEXT,
         g_id INTEGER,
-        cus_type_id INTEGER
+        cus_type_id INTEGER,
+        notes TEXT,
+        is_archived INTEGER DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -82,6 +84,10 @@ class DatabaseHelper {
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await _createIndexes(db);
+    }
+    if (oldVersion < 3) {
+      await _addColumnIfMissing(db, AppConstants.tableCustomers, 'notes', 'TEXT');
+      await _addColumnIfMissing(db, AppConstants.tableCustomers, 'is_archived', 'INTEGER DEFAULT 0');
     }
   }
 
@@ -151,12 +157,34 @@ class DatabaseHelper {
     }
   }
 
-  // ─── نسخة احتياطية تلقائية قبل الاستيراد ────────────────────────────────
+  // ─── نسخة احتياطية تلقائية (تحتفظ بآخر 5 نسخ فقط) ─────────────────────
   Future<String?> autoBackup() async {
     final now = DateTime.now();
     final name =
-        'auto_backup_${now.year}_${now.month}_${now.day}_${now.hour}_${now.minute}.db';
-    return exportDatabase(name);
+        'auto_backup_${now.year}_${now.month.toString().padLeft(2, '0')}_${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}.db';
+    final result = await exportDatabase(name);
+    if (result != null) await _rotateBackups();
+    return result;
+  }
+
+  // احتفظ بآخر 5 نسخ تلقائية فقط
+  Future<void> _rotateBackups() async {
+    try {
+      final dir = await getExternalStorageDirectory() ??
+          await getApplicationDocumentsDirectory();
+      final files = dir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.contains('auto_backup_') && f.path.endsWith('.db'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+      const keepCount = 5;
+      if (files.length > keepCount) {
+        for (final f in files.take(files.length - keepCount)) {
+          await f.delete();
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> closeDb() async {
@@ -201,8 +229,9 @@ class DatabaseHelper {
     if (await _tableExists(database, AppConstants.tableCustomers)) {
       await _addColumnIfMissing(database, AppConstants.tableCustomers, 'gsm', 'TEXT');
       await _addColumnIfMissing(database, AppConstants.tableCustomers, 'g_id', 'INTEGER');
-      await _addColumnIfMissing(
-          database, AppConstants.tableCustomers, 'cus_type_id', 'INTEGER');
+      await _addColumnIfMissing(database, AppConstants.tableCustomers, 'cus_type_id', 'INTEGER');
+      await _addColumnIfMissing(database, AppConstants.tableCustomers, 'notes', 'TEXT');
+      await _addColumnIfMissing(database, AppConstants.tableCustomers, 'is_archived', 'INTEGER DEFAULT 0');
     }
 
     if (await _tableExists(database, AppConstants.tableTransactions)) {

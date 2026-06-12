@@ -7,8 +7,10 @@ class SettingsService {
   SettingsService._internal();
 
   // ─── مفاتيح التخزين ──────────────────────────────────────────────────────
-  static const _keyApiUrl    = 'api_url';
-  static const _keyDarkMode  = 'dark_mode';
+  static const _keyApiUrl          = 'api_url';
+  static const _keyDarkMode        = 'dark_mode';
+  static const _keyLastBackupDate  = 'last_backup_date';
+  static const _keyAutoLockTimeout = 'auto_lock_timeout';
 
   // ─── قيم افتراضية ────────────────────────────────────────────────────────
   static const String defaultApiUrl          = 'https://harrypotter.foodsalebot.com/api';
@@ -44,5 +46,27 @@ class SettingsService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyDarkMode, value);
   }
-}
 
+  // ─── تاريخ آخر نسخة احتياطية ─────────────────────────────────────────────
+  Future<DateTime?> getLastBackupDate() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ms = prefs.getInt(_keyLastBackupDate);
+    return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  Future<void> setLastBackupDate(DateTime date) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyLastBackupDate, date.millisecondsSinceEpoch);
+  }
+
+  // ─── مهلة القفل التلقائي (بالثواني، 0 = معطّل) ──────────────────────────
+  Future<int> getAutoLockTimeout() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_keyAutoLockTimeout) ?? 0;
+  }
+
+  Future<void> setAutoLockTimeout(int seconds) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyAutoLockTimeout, seconds);
+  }
+}

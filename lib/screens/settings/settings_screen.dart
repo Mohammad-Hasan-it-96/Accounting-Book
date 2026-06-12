@@ -6,18 +6,19 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/backup_scheduler_service.dart';
 import '../../core/services/pin_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/widgets/update_dialog.dart';
-import '../../data/models/customer.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../providers/theme_provider.dart';
 import '../activation/activation_screen.dart';
+import '../groups/groups_screen.dart';
 import '../privacy/privacy_policy_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -31,16 +32,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ─── حالة ─────────────────────────────────────────────────────────────────
   String  _version        = '...';
   String  _buildNumber    = '';
-  String  _apiUrl         = SettingsService.defaultApiUrl;
   String? _deviceId;
   bool    _isActivated    = false;
   int     _customerCount  = 0;
 
-  bool _loadingInfo       = true;
-  bool _checkingUpdate    = false;
-  bool _recheckingActivation = false;
-  bool _pinEnabled        = false;
-  bool _autoBackupEnabled = false;
+  bool      _loadingInfo          = true;
+  bool      _checkingUpdate       = false;
+  bool      _recheckingActivation = false;
+  bool      _pinEnabled           = false;
+  bool      _autoBackupEnabled    = false;
+  DateTime? _lastBackupDate;
+  int       _autoLockTimeout      = 0;
 
   @override
   void initState() {
@@ -52,29 +54,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
    Future<void> _loadInfo() async {
      final results = await Future.wait([
        PackageInfo.fromPlatform(),
-       SettingsService().getApiUrl(),
        ActivationService().getDeviceId(),
        ActivationService().isActivated(),
-       CustomerRepository(context.read<AppProvider>().dbHelper).getAll(),
+       CustomerRepository(context.read<AppProvider>().dbHelper).count(),
        PinService().isPinEnabled(),
        BackupSchedulerService.isEnabled(),
+       SettingsService().getLastBackupDate(),
+       SettingsService().getAutoLockTimeout(),
      ]);
      if (!mounted) return;
      final pkg       = results[0] as PackageInfo;
-     final api       = results[1] as String;
-     final device    = results[2] as String;
-     final activated = results[3] as bool;
-     final customers = results[4] as List<Customer>;
+     final device    = results[1] as String;
+     final activated = results[2] as bool;
      setState(() {
-       _version      = pkg.version;
-       _buildNumber  = pkg.buildNumber;
-       _apiUrl       = api;
-       _deviceId     = device;
-       _isActivated  = activated;
-       _customerCount = customers.length;
-       _pinEnabled   = results[5] as bool;
-       _autoBackupEnabled = results[6] as bool;
-       _loadingInfo  = false;
+       _version           = pkg.version;
+       _buildNumber       = pkg.buildNumber;
+       _deviceId          = device;
+       _isActivated       = activated;
+       _customerCount     = results[3] as int;
+       _pinEnabled        = results[4] as bool;
+       _autoBackupEnabled = results[5] as bool;
+       _lastBackupDate    = results[6] as DateTime?;
+       _autoLockTimeout   = results[7] as int;
+       _loadingInfo       = false;
      });
    }
 
@@ -110,6 +112,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
          text: 'نسخة احتياطية من دفتر الحسابات',
        );
        if (!mounted) return;
+       final now = DateTime.now();
+       await SettingsService().setLastBackupDate(now);
+       if (mounted) setState(() => _lastBackupDate = now);
        _showSnack('تم تصدير النسخة الاحتياطية بنجاح');
      } catch (e) {
        if (!mounted) return;
@@ -155,65 +160,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       result.message,
       isError: result.isError,
       isSuccess: result.isSuccess,
-    );
-  }
-
-  // ─── تعديل API URL ────────────────────────────────────────────────────────
-  void _editApiUrl() {
-    final ctrl = TextEditingController(text: _apiUrl);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('رابط API'),
-        content: TextField(
-          controller: ctrl,
-          decoration: const InputDecoration(
-            hintText: 'https://...',
-            prefixIcon: Icon(Icons.link),
-          ),
-          keyboardType: TextInputType.url,
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          TextButton(
-            onPressed: () async {
-              await SettingsService().resetApiUrl();
-              if (mounted) setState(() => _apiUrl = SettingsService.defaultApiUrl);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('إعادة الافتراضي'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final url = ctrl.text.trim();
-              if (url.isEmpty) {
-                if (ctx.mounted) Navigator.pop(ctx);
-                return;
-              }
-              final uri = Uri.tryParse(url);
-              if (uri == null || (!url.startsWith('http://') && !url.startsWith('https://'))) {
-                if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                      content: Text('رابط غير صالح. يجب أن يبدأ بـ http:// أو https://'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-                return;
-              }
-              await SettingsService().setApiUrl(url);
-              if (mounted) setState(() => _apiUrl = url);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('حفظ'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -280,6 +226,117 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() => _pinEnabled = true);
       _showSnack('تم تفعيل قفل PIN بنجاح', isSuccess: true);
     }
+  }
+
+  // ─── تغيير رمز PIN ────────────────────────────────────────────────────────
+  Future<void> _changePinDialog() async {
+    final currentCtrl = TextEditingController();
+    final newCtrl     = TextEditingController();
+    final confirmCtrl = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تغيير رمز القفل'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: currentCtrl,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'الرمز الحالي'),
+            ),
+            TextField(
+              controller: newCtrl,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'الرمز الجديد (4 أرقام)'),
+            ),
+            TextField(
+              controller: confirmCtrl,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'تأكيد الرمز الجديد'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء')),
+          ElevatedButton(
+            onPressed: () async {
+              final ok = await PinService().verifyPin(currentCtrl.text.trim());
+              if (!ok) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('الرمز الحالي غير صحيح')));
+                }
+                return;
+              }
+              if (newCtrl.text.length < 4) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('أدخل 4 أرقام على الأقل')));
+                }
+                return;
+              }
+              if (newCtrl.text != confirmCtrl.text) {
+                if (ctx.mounted) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('الرمزان الجديدان غير متطابقين')));
+                }
+                return;
+              }
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+    if (result != true || !mounted) return;
+    await PinService().changePin(newCtrl.text.trim());
+    _showSnack('تم تغيير رمز PIN بنجاح', isSuccess: true);
+  }
+
+  // ─── إعداد مهلة القفل التلقائي ───────────────────────────────────────────
+  Future<void> _pickAutoLockTimeout() async {
+    const options = [
+      (0,    'معطّل'),
+      (30,   '30 ثانية'),
+      (60,   'دقيقة'),
+      (120,  'دقيقتان'),
+      (300,  '5 دقائق'),
+    ];
+    int? picked = await showDialog<int>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('القفل التلقائي بعد مغادرة التطبيق'),
+        children: options.map((o) {
+          final (secs, label) = o;
+          return ListTile(
+            title: Text(label),
+            leading: Icon(
+              _autoLockTimeout == secs
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_off,
+              color: _autoLockTimeout == secs
+                  ? Theme.of(ctx).colorScheme.primary
+                  : null,
+            ),
+            onTap: () => Navigator.pop(ctx, secs),
+          );
+        }).toList(),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    await SettingsService().setAutoLockTimeout(picked);
+    setState(() => _autoLockTimeout = picked);
   }
 
   // ─── تبديل النسخ الاحتياطي التلقائي ──────────────────────────────────────
@@ -425,6 +482,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    value: _pinEnabled,
                    onChanged: _configurePinLock,
                  ),
+                 if (_pinEnabled) ...[
+                   ListTile(
+                     leading: const Icon(Icons.password_outlined),
+                     title: const Text('تغيير رمز القفل'),
+                     subtitle: const Text('تعديل رمز PIN الحالي'),
+                     trailing: const Icon(Icons.chevron_left),
+                     onTap: _changePinDialog,
+                   ),
+                   ListTile(
+                     leading: const Icon(Icons.lock_clock_outlined),
+                     title: const Text('القفل التلقائي'),
+                     subtitle: Text(_autoLockTimeout == 0
+                         ? 'معطّل'
+                         : _autoLockTimeout < 60
+                             ? '$_autoLockTimeout ثانية'
+                             : '${_autoLockTimeout ~/ 60} دقيقة'),
+                     trailing: const Icon(Icons.chevron_left),
+                     onTap: _pickAutoLockTimeout,
+                   ),
+                 ],
                  const Divider(),
 
                  // ──────────────────────────────────────────────────────────
@@ -437,6 +514,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    subtitle: Text(_autoBackupEnabled ? 'يومياً' : 'معطّل'),
                    value: _autoBackupEnabled,
                    onChanged: _toggleAutoBackup,
+                 ),
+                 ListTile(
+                   leading: const Icon(Icons.history_outlined),
+                   title: const Text('آخر نسخة احتياطية'),
+                   subtitle: Text(
+                     _lastBackupDate == null
+                         ? 'لم يتم أخذ نسخة بعد'
+                         : '${_lastBackupDate!.day}/${_lastBackupDate!.month}/${_lastBackupDate!.year}'
+                           ' — ${_lastBackupDate!.hour.toString().padLeft(2, '0')}:${_lastBackupDate!.minute.toString().padLeft(2, '0')}',
+                   ),
+                   enabled: false,
                  ),
                  ListTile(
                    leading: const Icon(Icons.file_copy_outlined),
@@ -452,23 +540,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    trailing: const Icon(Icons.chevron_left),
                    onTap: _importBackup,
                  ),
-                 const Divider(),
-
-                 // ──────────────────────────────────────────────────────────
-                 // إعدادات متقدمة
-                 // ──────────────────────────────────────────────────────────
-                 _SectionHeader(title: 'إعدادات متقدمة'),
                  ListTile(
-                   leading: const Icon(Icons.api_outlined),
-                   title: const Text('رابط API'),
-                   subtitle: Text(
-                     _apiUrl,
-                     maxLines: 1,
-                     overflow: TextOverflow.ellipsis,
-                     style: const TextStyle(fontSize: 12),
+                   leading: const Icon(Icons.group_work_outlined),
+                   title: const Text('إدارة المجموعات'),
+                   subtitle: const Text('إنشاء المجموعات وتعديلها وحذفها'),
+                   trailing: const Icon(Icons.chevron_left),
+                   onTap: () => Navigator.push(
+                     context,
+                     MaterialPageRoute(builder: (_) => const GroupsScreen()),
                    ),
-                   trailing: const Icon(Icons.edit_outlined),
-                   onTap: _editApiUrl,
                  ),
                  const Divider(),
 
@@ -679,7 +759,7 @@ class _AppInfoCard extends StatelessWidget {
                         style: TextStyle(fontSize: 13),
                       ),
                       Text(
-                        'الحد المجاني: 50 حساب',
+                        'الحد المجاني: ${AppConstants.trialCustomerLimit} حساب',
                         style: TextStyle(
                             fontSize: 12, color: Colors.grey.shade600),
                       ),

@@ -33,7 +33,8 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
   bool _loading = true;
   DateTime? _fromDate;
   DateTime? _toDate;
-  bool _hasChanges = false;
+  bool _hasChanges  = false;
+  int _txTypeFilter = 0; // 0=الكل، 1=مطلوب فقط، -1=مدفوع فقط
 
   DateTime? _parseTxDate(String? raw) {
     if (raw == null || raw.isEmpty) return null;
@@ -92,8 +93,15 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       return 0;
     });
 
-    // Return just the transactions
-    return filtered.map((e) => e['tx'] as tx_model.Transaction).toList();
+    // فلتر النوع
+    final typeFiltered = _txTypeFilter == 0
+        ? filtered
+        : filtered
+            .where((item) =>
+                (item['tx'] as tx_model.Transaction).inFlag == _txTypeFilter)
+            .toList();
+
+    return typeFiltered.map((e) => e['tx'] as tx_model.Transaction).toList();
   }
 
   Future<void> _pickFromDate() async {
@@ -133,6 +141,65 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       _fromDate = null;
       _toDate = null;
     });
+  }
+
+  // ─── تسوية الرصيد ────────────────────────────────────────────────────────
+  Future<void> _settleBalance() async {
+    if (_balance == 0) return;
+    final isDebt = _balance > 0; // رصيد موجب = مطلوب = نضيف مدفوع
+    final amount = _balance.abs();
+
+    final remarksCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تسوية الرصيد'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isDebt
+                  ? 'سيتم تسجيل دفعة بقيمة ${_balance.abs()} ${widget.currency.displayName} لتصفير الرصيد.'
+                  : 'سيتم تسجيل مبلغ مطلوب بقيمة ${_balance.abs()} ${widget.currency.displayName} لتصفير الرصيد.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: remarksCtrl,
+              decoration: const InputDecoration(
+                labelText: 'ملاحظة (اختياري)',
+                prefixIcon: Icon(Icons.notes_outlined),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('تأكيد'),
+          ),
+        ],
+      ),
+    );
+    remarksCtrl.dispose();
+    if (confirmed != true || !mounted) return;
+
+    final dbHelper = context.read<AppProvider>().dbHelper;
+    final repo = TransactionRepository(dbHelper);
+    await repo.insert(tx_model.Transaction(
+      cusId:   widget.customer.id!,
+      inFlag:  isDebt ? -1 : 1,
+      out:     amount,
+      date:    DateTime.now().toIso8601String().substring(0, 10),
+      currId:  widget.currency.id!,
+      remarks: remarksCtrl.text.trim().isEmpty ? 'تسوية رصيد' : remarksCtrl.text.trim(),
+    ));
+    _hasChanges = true;
+    await _load();
   }
 
   _TransactionsSummary _calculateSummary(List<tx_model.Transaction> source) {
@@ -250,6 +317,12 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
         ),
         title: Text(widget.customer.name),
         actions: [
+           if (_balance != 0)
+             IconButton(
+               icon: const Icon(Icons.done_all),
+               tooltip: 'تسوية الرصيد',
+               onPressed: _settleBalance,
+             ),
            IconButton(
              icon: const Icon(Icons.copy),
              tooltip: 'نسخ',
@@ -360,6 +433,33 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                     ],
                   ),
                 ),
+                // ─── فلتر نوع الحركة ─────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                  child: Row(
+                    children: [
+                      _TypeChip(
+                        label: 'الكل',
+                        selected: _txTypeFilter == 0,
+                        onTap: () => setState(() => _txTypeFilter = 0),
+                      ),
+                      const SizedBox(width: 6),
+                      _TypeChip(
+                        label: 'مطلوب',
+                        selected: _txTypeFilter == 1,
+                        color: const Color(0xFF2E7D32),
+                        onTap: () => setState(() => _txTypeFilter = 1),
+                      ),
+                      const SizedBox(width: 6),
+                      _TypeChip(
+                        label: 'مدفوع',
+                        selected: _txTypeFilter == -1,
+                        color: const Color(0xFFC62828),
+                        onTap: () => setState(() => _txTypeFilter = -1),
+                      ),
+                    ],
+                  ),
+                ),
                 // ─── عنوان قسم الحركات ──────────────────────────────
                 Padding(
                   padding:
@@ -398,31 +498,43 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                         )
                       : RefreshIndicator(
                           onRefresh: _load,
-                          child: ListView.builder(
-                            itemCount: visibleTransactions.length,
-                            itemBuilder: (_, i) => _TransactionTile(
-                              tx: visibleTransactions[i],
-                              currencyName: widget.currency.displayName,
-                              onEdit: () async {
-                                final changed = await Navigator.push<bool>(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => AddEditTransactionScreen(
-                                      customer: widget.customer,
-                                      currency: widget.currency,
-                                      transaction: visibleTransactions[i],
+                          child: Builder(builder: (context) {
+                            // حساب الرصيد الجاري (من الأقدم إلى الأحدث)
+                            final reversed = visibleTransactions.reversed.toList();
+                            double running = 0;
+                            final runningBalances = reversed.map((tx) {
+                              running += tx.inFlag == 1 ? tx.out : -tx.out;
+                              return running;
+                            }).toList();
+                            final balancesForDisplay = runningBalances.reversed.toList();
+
+                            return ListView.builder(
+                              itemCount: visibleTransactions.length,
+                              itemBuilder: (_, i) => _TransactionTile(
+                                tx: visibleTransactions[i],
+                                currencyName: widget.currency.displayName,
+                                runningBalance: balancesForDisplay[i],
+                                onEdit: () async {
+                                  final changed = await Navigator.push<bool>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => AddEditTransactionScreen(
+                                        customer: widget.customer,
+                                        currency: widget.currency,
+                                        transaction: visibleTransactions[i],
+                                      ),
                                     ),
-                                  ),
-                                );
-                                if (changed == true) {
-                                  _hasChanges = true;
-                                  await _load();
-                                }
-                              },
-                              onDelete: () =>
-                                  _deleteTransaction(visibleTransactions[i]),
-                            ),
-                          ),
+                                  );
+                                  if (changed == true) {
+                                    _hasChanges = true;
+                                    await _load();
+                                  }
+                                },
+                                onDelete: () =>
+                                    _deleteTransaction(visibleTransactions[i]),
+                              ),
+                            );
+                          }),
                         ),
                 ),
               ],
@@ -586,12 +698,14 @@ class _CustomerHeader extends StatelessWidget {
 class _TransactionTile extends StatelessWidget {
   final tx_model.Transaction tx;
   final String currencyName;
+  final double runningBalance;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _TransactionTile({
     required this.tx,
     required this.currencyName,
+    required this.runningBalance,
     required this.onEdit,
     required this.onDelete,
   });
@@ -689,7 +803,19 @@ class _TransactionTile extends StatelessWidget {
                   style: TextStyle(
                       fontSize: 10, color: Colors.grey.shade400),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
+                // الرصيد الجاري
+                Text(
+                  'رصيد: ${FormatHelper.formatAmount(runningBalance)}',
+                  style: TextStyle(
+                      fontSize: 10,
+                      color: runningBalance == 0
+                          ? Colors.grey
+                          : runningBalance > 0
+                              ? const Color(0xFF2E7D32)
+                              : const Color(0xFFC62828)),
+                ),
+                const SizedBox(height: 2),
                 // أزرار تعديل وحذف
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -721,6 +847,46 @@ class _TransactionTile extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── شريحة فلتر النوع ────────────────────────────────────────────────────────
+class _TypeChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color? color;
+  final VoidCallback onTap;
+
+  const _TypeChip({
+    required this.label,
+    required this.selected,
+    this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? Theme.of(context).colorScheme.primary;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? c.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? c : Colors.grey.shade300),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: selected ? c : Colors.grey.shade600,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
         ),
       ),
     );

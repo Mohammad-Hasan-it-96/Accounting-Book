@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 import '../constants/app_constants.dart';
+import '../services/settings_service.dart';
 import '../../data/database/database_helper.dart';
 
 class BackupSchedulerService {
@@ -39,6 +40,7 @@ void callbackDispatcher() {
         task == AppConstants.dbName) {
       try {
         await DatabaseHelper().autoBackup();
+        await SettingsService().setLastBackupDate(DateTime.now());
       } catch (_) {}
     }
     return true;
