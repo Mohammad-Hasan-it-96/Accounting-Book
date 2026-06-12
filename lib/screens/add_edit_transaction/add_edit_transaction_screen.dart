@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../data/models/customer.dart';
 import '../../data/models/currency.dart';
@@ -49,8 +50,11 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
   int? _selectedCustomerId;
   int? _selectedCurrencyId;
   int _inFlag = _transactionTypeOptions.first.inValue;
-  bool _saving = false;
+  bool _saving       = false;
+  bool _dirty        = false;
   bool _loadingLookups = true;
+
+  void _markDirty() { if (!_dirty) setState(() => _dirty = true); }
 
   int _normalizeInFlag(int? rawValue) {
     final exists = _transactionTypeOptions.any((o) => o.inValue == rawValue);
@@ -113,7 +117,10 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      HapticFeedback.lightImpact();
+      return;
+    }
 
     final customerId = _selectedCustomerId;
     final currencyId = _selectedCurrencyId;
@@ -160,7 +167,9 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
       await repo.update(tx);
     }
 
-    if (mounted) Navigator.pop(context, true);
+    if (!mounted) return;
+    HapticFeedback.mediumImpact();
+    Navigator.pop(context, true);
   }
 
   Future<void> _deleteTransaction() async {
@@ -189,6 +198,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
     if (confirm != true) return;
     if (!mounted) return;
 
+    HapticFeedback.heavyImpact();
     setState(() => _saving = true);
     final dbHelper = context.read<AppProvider>().dbHelper;
     await TransactionRepository(dbHelper).delete(txId);
@@ -236,154 +246,196 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(isEdit ? 'تعديل حركة' : 'إضافة حركة'),
-        actions: [
-          if (isEdit)
-            IconButton(
-              tooltip: 'حذف الحركة',
-              onPressed: _saving ? null : _deleteTransaction,
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-            ),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            DropdownButtonFormField<int>(
-              initialValue: _customers.any((c) => c.id == _selectedCustomerId)
-                  ? _selectedCustomerId
-                  : null,
-              decoration: const InputDecoration(
-                labelText: 'العميل *',
-                prefixIcon: Icon(Icons.person),
+    return PopScope(
+      canPop: !_dirty || _saving,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final nav = Navigator.of(context);
+        final leave = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('تجاهل التغييرات؟'),
+            content: const Text('لديك تغييرات غير محفوظة. هل تريد المغادرة؟'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('تابع التعديل'),
               ),
-              items: _customers
-                  .where((c) => c.id != null)
-                  .map(
-                    (c) => DropdownMenuItem<int>(
-                      value: c.id!,
-                      child: Text(c.name),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() => _selectedCustomerId = v),
-              validator: (v) => v == null ? 'العميل مطلوب' : null,
-            ),
-            const SizedBox(height: 16),
-
-            DropdownButtonFormField<int>(
-              initialValue: _currencies.any((c) => c.id == _selectedCurrencyId)
-                  ? _selectedCurrencyId
-                  : null,
-              decoration: const InputDecoration(
-                labelText: 'العملة *',
-                prefixIcon: Icon(Icons.currency_exchange),
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('تجاهل'),
               ),
-              items: _currencies
-                  .where((c) => c.id != null)
-                  .map(
-                    (c) => DropdownMenuItem<int>(
-                      value: c.id!,
-                      child: Text(c.displayName),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() => _selectedCurrencyId = v),
-              validator: (v) => v == null ? 'العملة مطلوبة' : null,
-            ),
-            const SizedBox(height: 12),
-
-            // المبلغ
-            TextFormField(
-              controller: _amountCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'المبلغ *',
-                prefixIcon: Icon(Icons.monetization_on),
-              ),
-             validator: (v) {
-                 if (v == null || v.trim().isEmpty) return 'المبلغ مطلوب';
-                 final amount = double.tryParse(v.trim());
-                 if (amount == null) return 'أدخل رقماً صحيحاً';
-                 if (amount <= 0) return 'أدخل مبلغاً أكبر من صفر';
-                 return null;
-               },
-            ),
-            const SizedBox(height: 12),
-
-            // التاريخ
-            InkWell(
-              onTap: _pickDate,
-              borderRadius: BorderRadius.circular(8),
-              child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'التاريخ *',
-                  prefixIcon: Icon(Icons.calendar_today),
+            ],
+          ),
+        );
+        if (leave == true && mounted) nav.pop();
+      },
+      child: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(isEdit ? 'تعديل حركة' : 'إضافة حركة'),
+            actions: [
+              if (isEdit)
+                IconButton(
+                  tooltip: 'حذف الحركة',
+                  onPressed: _saving ? null : _deleteTransaction,
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
                 ),
-                child: Text(
-                  _selectedDate == null
-                      ? 'اختر التاريخ'
-                      : FormatHelper.formatDateFromDateTime(_selectedDate!),
-                  style: TextStyle(
-                    color: _selectedDate == null
-                        ? Colors.grey.shade600
-                        : null,
+            ],
+          ),
+          body: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                DropdownButtonFormField<int>(
+                  initialValue: _customers.any((c) => c.id == _selectedCustomerId)
+                      ? _selectedCustomerId
+                      : null,
+                  decoration: const InputDecoration(
+                    labelText: 'العميل *',
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  items: _customers
+                      .where((c) => c.id != null)
+                      .map(
+                        (c) => DropdownMenuItem<int>(
+                          value: c.id!,
+                          child: Text(c.name),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    setState(() => _selectedCustomerId = v);
+                    _markDirty();
+                  },
+                  validator: (v) => v == null ? 'العميل مطلوب' : null,
+                ),
+                const SizedBox(height: 16),
+
+                DropdownButtonFormField<int>(
+                  initialValue: _currencies.any((c) => c.id == _selectedCurrencyId)
+                      ? _selectedCurrencyId
+                      : null,
+                  decoration: const InputDecoration(
+                    labelText: 'العملة *',
+                    prefixIcon: Icon(Icons.currency_exchange),
+                  ),
+                  items: _currencies
+                      .where((c) => c.id != null)
+                      .map(
+                        (c) => DropdownMenuItem<int>(
+                          value: c.id!,
+                          child: Text(c.displayName),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    setState(() => _selectedCurrencyId = v);
+                    _markDirty();
+                  },
+                  validator: (v) => v == null ? 'العملة مطلوبة' : null,
+                ),
+                const SizedBox(height: 12),
+
+                // المبلغ
+                TextFormField(
+                  controller: _amountCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'المبلغ *',
+                    prefixIcon: Icon(Icons.monetization_on),
+                  ),
+                  onChanged: (_) => _markDirty(),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'المبلغ مطلوب';
+                    final amount = double.tryParse(v.trim());
+                    if (amount == null) return 'أدخل رقماً صحيحاً';
+                    if (amount <= 0) return 'أدخل مبلغاً أكبر من صفر';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                // التاريخ
+                InkWell(
+                  onTap: () async {
+                    await _pickDate();
+                    _markDirty();
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'التاريخ *',
+                      prefixIcon: Icon(Icons.calendar_today),
+                    ),
+                    child: Text(
+                      _selectedDate == null
+                          ? 'اختر التاريخ'
+                          : FormatHelper.formatDateFromDateTime(_selectedDate!),
+                      style: TextStyle(
+                        color: _selectedDate == null
+                            ? Colors.grey.shade600
+                            : null,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 12),
+                const SizedBox(height: 12),
 
-            DropdownButtonFormField<int>(
-              initialValue: _normalizeInFlag(_inFlag),
-              decoration: const InputDecoration(
-                labelText: 'نوع الحركة *',
-                prefixIcon: Icon(Icons.compare_arrows),
-              ),
-              items: _transactionTypeOptions
-                  .map(
-                    (option) => DropdownMenuItem<int>(
-                      value: option.inValue,
-                      child: Text(option.label),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (v) =>
-                  setState(() => _inFlag = _normalizeInFlag(v)),
-              validator: (v) => v == null ? 'نوع الحركة مطلوب' : null,
-            ),
-            const SizedBox(height: 12),
-
-            // ملاحظة
-            TextFormField(
-              controller: _remarksCtrl,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'ملاحظة (اختياري)',
-                prefixIcon: Icon(Icons.note),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                DropdownButtonFormField<int>(
+                  initialValue: _normalizeInFlag(_inFlag),
+                  decoration: const InputDecoration(
+                    labelText: 'نوع الحركة *',
+                    prefixIcon: Icon(Icons.compare_arrows),
+                  ),
+                  items: _transactionTypeOptions
+                      .map(
+                        (option) => DropdownMenuItem<int>(
+                          value: option.inValue,
+                          child: Text(option.label),
+                        ),
                       )
-                    : Text(isEdit ? 'حفظ التعديلات' : 'إضافة الحركة'),
-              ),
+                      .toList(),
+                  onChanged: (v) {
+                    setState(() => _inFlag = _normalizeInFlag(v));
+                    _markDirty();
+                  },
+                  validator: (v) => v == null ? 'نوع الحركة مطلوب' : null,
+                ),
+                const SizedBox(height: 12),
+
+                // ملاحظة
+                TextFormField(
+                  controller: _remarksCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'ملاحظة (اختياري)',
+                    prefixIcon: Icon(Icons.note),
+                  ),
+                  onChanged: (_) => _markDirty(),
+                ),
+                const SizedBox(height: 24),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _saving ? null : _save,
+                    child: _saving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(isEdit ? 'حفظ التعديلات' : 'إضافة الحركة'),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

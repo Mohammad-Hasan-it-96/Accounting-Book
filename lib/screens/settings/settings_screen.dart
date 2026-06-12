@@ -508,6 +508,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                  // البيانات
                  // ──────────────────────────────────────────────────────────
                  _SectionHeader(title: 'البيانات'),
+                 // تحذير النسخة الاحتياطية القديمة
+                 if (_lastBackupDate == null ||
+                     DateTime.now().difference(_lastBackupDate!).inDays >= 7)
+                   Container(
+                     margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                     padding: const EdgeInsets.symmetric(
+                         horizontal: 12, vertical: 8),
+                     decoration: BoxDecoration(
+                       color: Colors.orange.shade50,
+                       border: Border.all(color: Colors.orange.shade200),
+                       borderRadius: BorderRadius.circular(8),
+                     ),
+                     child: Row(
+                       children: [
+                         Icon(Icons.warning_amber_rounded,
+                             color: Colors.orange.shade700, size: 18),
+                         const SizedBox(width: 8),
+                         Expanded(
+                           child: Text(
+                             _lastBackupDate == null
+                                 ? 'لم تُؤخذ نسخة احتياطية بعد. احرص على حماية بياناتك!'
+                                 : 'آخر نسخة احتياطية منذ ${DateTime.now().difference(_lastBackupDate!).inDays} يوم. يُنصح بأخذ نسخة.',
+                             style: TextStyle(
+                                 fontSize: 12, color: Colors.orange.shade900),
+                           ),
+                         ),
+                       ],
+                     ),
+                   ),
                  SwitchListTile(
                    secondary: const Icon(Icons.backup_outlined),
                    title: const Text('النسخ الاحتياطي التلقائي'),
