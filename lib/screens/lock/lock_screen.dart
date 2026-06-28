@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import '../../core/services/pin_service.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 
 class LockScreen extends StatefulWidget {
@@ -122,7 +122,7 @@ class _LockScreenState extends State<LockScreen> {
   Widget build(BuildContext context) {
     final isLocked = _lockedUntil != null;
     return Scaffold(
-      backgroundColor: AppTheme.primary,
+      backgroundColor: AppColors.primary,
       body: SafeArea(
         child: Column(
           children: [

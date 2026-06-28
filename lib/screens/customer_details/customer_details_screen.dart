@@ -11,8 +11,10 @@ import '../../core/helpers/customer_helper.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../core/helpers/statement_helper.dart';
 import '../../core/services/pdf_service.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/theme/app_durations.dart';
+import '../../core/theme/app_text_styles.dart';
 import '../add_edit_transaction/add_edit_transaction_screen.dart';
 
 class CustomerDetailsScreen extends StatefulWidget {
@@ -302,8 +304,8 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     final balanceColor = _balance == 0
         ? Colors.grey
         : _balance > 0
-            ? AppTheme.income
-            : AppTheme.expense;
+            ? AppColors.income
+            : AppColors.expense;
 
     return PopScope<bool>(
       canPop: false,
@@ -454,14 +456,14 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                       _TypeChip(
                         label: 'مطلوب',
                         selected: _txTypeFilter == 1,
-                        color: AppTheme.income,
+                        color: AppColors.income,
                         onTap: () => setState(() => _txTypeFilter = 1),
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       _TypeChip(
                         label: 'مدفوع',
                         selected: _txTypeFilter == -1,
-                        color: AppTheme.expense,
+                        color: AppColors.expense,
                         onTap: () => setState(() => _txTypeFilter = -1),
                       ),
                     ],
@@ -630,9 +632,7 @@ class _CustomerHeader extends StatelessWidget {
                   children: [
                     Text(
                       customer.name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: AppFontSize.subtitle),
+                      style: AppTextStyles.subtitleBold,
                     ),
                     if (customer.gsm != null && customer.gsm!.isNotEmpty)
                       Text(
@@ -727,7 +727,7 @@ class _TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isIn = tx.inFlag == 1;
-    final color = isIn ? AppTheme.income : AppTheme.expense;
+    final color = isIn ? AppColors.income : AppColors.expense;
     final label = BalanceHelper.transactionLabel(tx.inFlag);
     final hasRemarks = tx.remarks != null && tx.remarks!.isNotEmpty;
 
@@ -830,8 +830,8 @@ class _TransactionTile extends StatelessWidget {
                       color: runningBalance == 0
                           ? Colors.grey
                           : runningBalance > 0
-                              ? AppTheme.income
-                              : AppTheme.expense),
+                              ? AppColors.income
+                              : AppColors.expense),
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 // أزرار تعديل وحذف
@@ -891,7 +891,7 @@ class _TypeChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+        duration: AppDurations.fast,
         padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md, vertical: AppSpacing.xs),
         decoration: ShapeDecoration(
@@ -952,14 +952,14 @@ class _SummarySection extends StatelessWidget {
             child: _SummaryValue(
               title: 'إجمالي مطلوب',
               value: FormatHelper.formatAmount(summary.totalIn),
-              color: AppTheme.income,
+              color: AppColors.income,
             ),
           ),
           Expanded(
             child: _SummaryValue(
               title: 'إجمالي مدفوع',
               value: FormatHelper.formatAmount(summary.totalOut),
-              color: AppTheme.expense,
+              color: AppColors.expense,
             ),
           ),
           Expanded(

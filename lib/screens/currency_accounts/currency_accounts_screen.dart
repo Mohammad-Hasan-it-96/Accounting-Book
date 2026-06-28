@@ -9,7 +9,7 @@ import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../activation/activation_screen.dart';
 import '../customer_details/customer_details_screen.dart';
@@ -574,12 +574,12 @@ class _SummaryBar extends StatelessWidget {
               label: 'دائن',
               value: FormatHelper.formatAmount(totalCredit),
               icon: Icons.arrow_downward,
-              color: AppTheme.income),
+              color: AppColors.income),
           _StatItem(
               label: 'مدين',
               value: FormatHelper.formatAmount(totalDebit),
               icon: Icons.arrow_upward,
-              color: AppTheme.expense),
+              color: AppColors.expense),
         ],
       ),
     );
@@ -653,14 +653,14 @@ class _CustomerTile extends StatelessWidget {
     final avatarBg = isZero
         ? Colors.grey.shade400
         : balance > 0
-            ? AppTheme.income
-            : AppTheme.expense;
+            ? AppColors.income
+            : AppColors.expense;
 
     final balanceColor = isZero
         ? Colors.grey.shade500
         : balance > 0
-            ? const Color(0xFF1B5E20)
-            : const Color(0xFFB71C1C);
+            ? AppColors.incomeDark
+            : AppColors.expenseDark;
 
     // ─── سطر الملخص الثانوي ─────────────────────────────────────────────────
     final parts = <String>[];

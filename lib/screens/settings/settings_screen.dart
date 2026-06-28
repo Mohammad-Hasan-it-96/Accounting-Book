@@ -16,7 +16,10 @@ import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/theme/app_durations.dart';
+import '../../core/theme/app_text_styles.dart';
 import '../../providers/theme_provider.dart';
 import '../activation/activation_screen.dart';
 import '../groups/groups_screen.dart';
@@ -406,7 +409,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : isSuccess
               ? Colors.green.shade700
               : null,
-      duration: const Duration(seconds: 3),
+      duration: AppDurations.snackbar,
     ));
   }
 
@@ -588,7 +591,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // ──────────────────────────────────────────────────────────
                 _SectionHeader(title: 'الدعم الفني'),
                 ListTile(
-                  leading: const Icon(Icons.chat, color: Color(0xFF25D366)),
+                  leading: const Icon(Icons.chat, color: AppColors.whatsApp),
                   title: const Text('واتساب'),
                   subtitle: const Text('تواصل مع المطوّر'),
                   trailing: const Icon(Icons.open_in_new, size: AppIconSize.sm),
@@ -597,7 +600,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       '?text=${Uri.encodeComponent("مرحباً، أحتاج مساعدة في دفتر الحسابات")}'),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.send, color: Color(0xFF0088CC)),
+                  leading: const Icon(Icons.send, color: AppColors.telegram),
                   title: const Text('تيليغرام'),
                   subtitle: const Text('تواصل مع المطوّر'),
                   trailing: const Icon(Icons.open_in_new, size: AppIconSize.sm),
@@ -762,9 +765,7 @@ class _AppInfoCard extends StatelessWidget {
                     children: [
                       const Text(
                         'دفتر حسابات',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: AppFontSize.subtitle),
+                        style: AppTextStyles.subtitleBold,
                       ),
                       Text(
                         'الإصدار $version+$buildNumber',

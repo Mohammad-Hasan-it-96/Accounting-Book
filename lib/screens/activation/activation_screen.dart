@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/theme/app_durations.dart';
+import '../../core/theme/app_text_styles.dart';
 import '../home/home_screen.dart';
 class ActivationScreen extends StatefulWidget {
   const ActivationScreen({super.key});
@@ -87,7 +90,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
     setState(() {
       _banner = _ResultBanner(message: message, type: _BannerType.success);
     });
-    Future.delayed(const Duration(milliseconds: 900), () {
+    Future.delayed(AppDurations.slow, () {
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
@@ -104,7 +107,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
       const SnackBar(
         content: Text('تم نسخ معرّف الجهاز'),
         behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
+        duration: AppDurations.snackbarShort,
       ),
     );
   }
@@ -142,8 +145,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
                       // ─── العنوان ─────────────────────────────────
                       Text('تفعيل دفتر الحسابات',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              fontSize: AppFontSize.headline, fontWeight: FontWeight.bold)),
+                          style: AppTextStyles.headlineBold),
                       const SizedBox(height: AppSpacing.sm),
                        Text(
                          'التطبيق مجاني لإدارة حتى 50 حسابًا.\nبعد ذلك، يكفي التفعيل مرة واحدة للاستخدام غير المحدود.',
@@ -371,9 +373,11 @@ class _ContactRow extends StatelessWidget {
           child: OutlinedButton.icon(
             onPressed: () => _open(context,
                 'https://wa.me/${SettingsService.supportWhatsApp}?text=${Uri.encodeComponent("مرحباً، أريد تفعيل دفتر الحسابات")}'),
-            icon: const Icon(Icons.chat, size: AppIconSize.sm, color: Color(0xFF25D366)),
+            icon: const Icon(Icons.chat, size: AppIconSize.sm,
+                color: AppColors.whatsApp),
             label: const Text('مراسلة على واتساب',
-                style: TextStyle(color: Color(0xFF25D366), fontSize: AppFontSize.body)),
+                style: TextStyle(
+                    color: AppColors.whatsApp, fontSize: AppFontSize.body)),
           ),
         ),
       ],

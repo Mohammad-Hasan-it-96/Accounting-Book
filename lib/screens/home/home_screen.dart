@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/theme/app_durations.dart';
+import '../../core/theme/app_text_styles.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../core/services/activation_service.dart';
@@ -163,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
       content: Text(msg),
       backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
       behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 3),
+      duration: AppDurations.snackbar,
     ));
   }
 
@@ -301,7 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _BookButton(
                   label: 'دفتر الليرة',
                   icon: Icons.account_balance_wallet_outlined,
-                  color: AppTheme.primary,
+                  color: AppColors.primary,
                   onTap: isLoading ? null : () => _openCurrencyBook('ليرة'),
                   loading: isLoading,
                 ),
@@ -311,7 +313,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _BookButton(
                   label: 'دفتر الدولار',
                   icon: Icons.attach_money,
-                  color: AppTheme.income,
+                  color: AppColors.income,
                   onTap: isLoading ? null : () => _openCurrencyBook('دولار'),
                   loading: isLoading,
                 ),
@@ -637,9 +639,7 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
                         children: [
                           Text(
                             customer.name,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: AppFontSize.subtitle),
+                            style: AppTextStyles.subtitleBold,
                           ),
                         ],
                       ),
@@ -651,7 +651,7 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
               if (lira != null)
                 ListTile(
                   leading: const Icon(Icons.account_balance_wallet,
-                      color: AppTheme.primary),
+                      color: AppColors.primary),
                   title: const Text('دفتر الليرة'),
                   onTap: () async {
                     Navigator.pop(context);
@@ -661,7 +661,7 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
               if (dollar != null)
                 ListTile(
                   leading: const Icon(Icons.attach_money,
-                      color: AppTheme.income),
+                      color: AppColors.income),
                   title: const Text('دفتر الدولار'),
                   onTap: () async {
                     Navigator.pop(context);

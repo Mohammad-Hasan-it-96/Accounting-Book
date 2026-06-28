@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/update_service.dart';
 import '../theme/app_dimens.dart';
+import '../theme/app_text_styles.dart';
 
 /// يعرض Dialog بتفاصيل التحديث المتاح.
 /// إذا كان [info.forceUpdate] == true لا يمكن إغلاق الـ Dialog.
@@ -101,8 +102,7 @@ class _Header extends StatelessWidget {
               children: [
                 Text(
                   forceUpdate ? 'تحديث إلزامي!' : 'يوجد تحديث جديد',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: AppFontSize.subtitle),
+                  style: AppTextStyles.subtitleBold,
                 ),
                 if (forceUpdate)
                   const Text(

@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
 import 'app_dimens.dart';
 
 class AppTheme {
-  // الألوان الأساسية - هادئة وبسيطة
-  static const Color primary = Color(0xFF1565C0);      // أزرق داكن
-  static const Color primaryLight = Color(0xFF1E88E5); // أزرق فاتح
-  static const Color income = Color(0xFF2E7D32);       // أخضر (مطلوب / دائن)
-  static const Color expense = Color(0xFFC62828);      // أحمر (مدفوع / مدين)
-
   // أحجام موحّدة لعناصر التحكم
   static const double _buttonMinHeight = 48;
 
@@ -83,11 +78,11 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: primary,
+        seedColor: AppColors.primary,
         brightness: Brightness.light,
       ),
       fontFamily: 'Roboto',
-      appBarTheme: _appBarBase.copyWith(backgroundColor: primary),
+      appBarTheme: _appBarBase.copyWith(backgroundColor: AppColors.primary),
       cardTheme: CardThemeData(
         elevation: 1,
         margin: const EdgeInsets.symmetric(
@@ -97,7 +92,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: primary,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
       iconTheme: _iconTheme,
@@ -116,14 +111,14 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: primary,
+        seedColor: AppColors.primary,
         brightness: Brightness.dark,
       ),
       fontFamily: 'Roboto',
       appBarTheme: _appBarBase.copyWith(backgroundColor: Colors.grey.shade900),
       cardTheme: CardThemeData(
         elevation: 1,
-        color: const Color(0xFF272727),
+        color: AppColors.cardDark,
         margin: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm,
           vertical: AppSpacing.xs,
@@ -131,7 +126,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: primaryLight,
+        backgroundColor: AppColors.primaryLight,
         foregroundColor: Colors.white,
       ),
       iconTheme: _iconTheme,

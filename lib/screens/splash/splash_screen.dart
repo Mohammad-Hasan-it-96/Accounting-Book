@@ -2,8 +2,9 @@
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_constants.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/theme/app_durations.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/pin_service.dart';
 import '../../data/repositories/customer_repository.dart';
@@ -33,7 +34,7 @@ class _SplashScreenState extends State<SplashScreen>
     // ─── animation بسيط: scale bounce → fade النص ──────────────────────────
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: AppDurations.slow,
     );
     _scale = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.12), weight: 65),
@@ -62,7 +63,7 @@ class _SplashScreenState extends State<SplashScreen>
       context.read<ThemeProvider>().load(),                                        // [0] تحميل الثيم
       ActivationService().isActivated(),                                            // [1] هل التطبيق مفعّل؟
       PinService().isPinEnabled(),                                                  // [2] هل قفل PIN مفعّل؟
-      Future.delayed(const Duration(milliseconds: 800)),                           // [3] حد أدنى للعرض
+      Future.delayed(AppDurations.splashHold),                                     // [3] حد أدنى للعرض
       CustomerRepository(context.read<AppProvider>().dbHelper).count(),            // [4] عدد العملاء
     ]);
 
@@ -98,7 +99,7 @@ class _SplashScreenState extends State<SplashScreen>
         pageBuilder: (_, _, _) => destination,
         transitionsBuilder: (_, anim, _, child) =>
             FadeTransition(opacity: anim, child: child),
-        transitionDuration: const Duration(milliseconds: 350),
+        transitionDuration: AppDurations.medium,
       ),
     );
     // ملاحظة:
@@ -110,7 +111,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.primary,
+      backgroundColor: AppColors.primary,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

@@ -75,9 +75,12 @@ Provider (v6.1.5). Only two providers exist at the global level: `AppProvider` (
 `PdfService` builds account statements via the `pdf` + `printing` packages for share/print.
 
 ### Design System (Tokens)
-All visual constants are centralized — do not hardcode sizes/colors in screens:
-- `core/theme/app_dimens.dart` — `AppSpacing` (4-pt grid: xxs..xxxl), `AppRadius` (sm 8 / md 12 / lg 16, plus ready `*All` BorderRadius), `AppIconSize` (sm 16 / md 20 / lg 24 / xl 32 / xxl 48 / empty 64), `AppFontSize` (micro 10 → display 26), and `Gap` spacer widgets.
-- `core/theme/app_theme.dart` — semantic colors `AppTheme.primary/income/expense` (reference these instead of repeating hex), plus Material 3 component themes (unified 48px-min buttons with md radius, `StadiumBorder` chips/badges, lg-radius dialogs, md-radius cards/inputs).
+All visual constants are centralized under `core/theme/` — do not hardcode sizes/colors/durations/styles in screens:
+- `app_dimens.dart` — `AppSpacing` (4-pt grid: xxs..xxxl), `AppRadius` (sm 8 / md 12 / lg 16, plus ready `*All` BorderRadius), `AppIconSize` (sm 16 / md 20 / lg 24 / xl 32 / xxl 48 / empty 64), `AppFontSize` (micro 10 → display 26), and `Gap` spacer widgets.
+- `app_colors.dart` — `AppColors` is the single source for colors: `primary`/`primaryLight`, semantic `income`/`incomeDark`/`expense`/`expenseDark`, `cardDark`, and brand `whatsApp`/`telegram`. Reference these instead of repeating hex. (Material grey/status shades stay as `Colors.*` — already named constants.)
+- `app_durations.dart` — `AppDurations` (fast/medium/slow/splashHold/snackbar/snackbarShort) for UI animation + feedback timing. Network timeouts and logic timers are NOT design tokens and stay in their layer.
+- `app_text_styles.dart` — `AppTextStyles` reusable styles built on `AppFontSize` (size-only scale + `*Bold` heading variants); compose with `.copyWith(color: ...)` at the call site.
+- `app_theme.dart` — Material 3 component themes (unified 48px-min buttons with md radius, `StadiumBorder` chips/badges, lg-radius dialogs, md-radius cards/inputs); pulls its colors from `AppColors`.
 - Pill-shaped badges/chips use `StadiumBorder` (via `ShapeDecoration` for custom containers), not a large `borderRadius`.
 
 ### Localization
