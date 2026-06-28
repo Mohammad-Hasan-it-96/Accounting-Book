@@ -2,6 +2,8 @@
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_dimens.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/pin_service.dart';
 import '../../data/repositories/customer_repository.dart';
@@ -108,7 +110,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1565C0),
+      backgroundColor: AppTheme.primary,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -134,7 +136,7 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xxl),
             // ─── اسم التطبيق + وصف مختصر ─────────────────────────────
             FadeTransition(
               opacity: _fade,
@@ -144,20 +146,21 @@ class _SplashScreenState extends State<SplashScreen>
                     'دفتر حسابات',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 26,
+                      fontSize: AppFontSize.display,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.5,
                     ),
                   ),
-                  SizedBox(height: 6),
+                  SizedBox(height: AppSpacing.sm),
                   Text(
                     'إدارة الحسابات بسهولة',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                    style: TextStyle(
+                        color: Colors.white70, fontSize: AppFontSize.body),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 56),
+            const SizedBox(height: AppSpacing.xxxl),
             // ─── مؤشر تحميل خفيف ─────────────────────────────────────
             FadeTransition(
               opacity: _fade,

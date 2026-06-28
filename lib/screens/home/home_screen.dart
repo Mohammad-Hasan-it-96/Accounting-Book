@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_dimens.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../core/services/activation_service.dart';
@@ -210,7 +212,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg, vertical: AppSpacing.md),
         children: [
           // ── شريط حالة التفعيل ─────────────────────────────────────
           _ActivationBanner(
@@ -219,23 +222,24 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           if (provider.hasError)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
               child: Row(
                 children: [
                   Icon(Icons.warning_amber_rounded,
-                      size: 14, color: Colors.orange.shade700),
-                  const SizedBox(width: 6),
+                      size: AppIconSize.sm, color: Colors.orange.shade700),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
                       'تعذر تحميل العملات. أعد تشغيل التطبيق.',
                       style: TextStyle(
-                          fontSize: 12, color: Colors.orange.shade700),
+                          fontSize: AppFontSize.small,
+                          color: Colors.orange.shade700),
                     ),
                   ),
                 ],
               ),
             ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.md),
 
           // ── بحث سريع ────────────────────────────────────────────
           TextField(
@@ -258,16 +262,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // ── نتائج البحث ──────────────────────────────────────────
           if (_searchCtrl.text.trim().isNotEmpty) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpacing.xs),
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 240),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: AppRadius.mdAll,
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: AppRadius.mdAll,
                   child: _QuickSearchResults(
                     query: _searchCtrl.text.trim(),
                     provider: provider,
@@ -278,15 +282,17 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             if (provider.liraCurrency != null && provider.dollarCurrency != null)
               Padding(
-                padding: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
                 child: Text(
                   'عند فتح عميل من البحث سيتم سؤالك عن الدفتر.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  style: TextStyle(
+                      fontSize: AppFontSize.caption,
+                      color: Colors.grey.shade500),
                 ),
               ),
           ],
 
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
 
           // ── زرا الدفاتر الرئيسيان ────────────────────────────────
           Row(
@@ -295,17 +301,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _BookButton(
                   label: 'دفتر الليرة',
                   icon: Icons.account_balance_wallet_outlined,
-                  color: const Color(0xFF1565C0),
+                  color: AppTheme.primary,
                   onTap: isLoading ? null : () => _openCurrencyBook('ليرة'),
                   loading: isLoading,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: _BookButton(
                   label: 'دفتر الدولار',
                   icon: Icons.attach_money,
-                  color: const Color(0xFF2E7D32),
+                  color: AppTheme.income,
                   onTap: isLoading ? null : () => _openCurrencyBook('دولار'),
                   loading: isLoading,
                 ),
@@ -313,7 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.lg),
 
           // ── بطاقة النسخ الاحتياطي ────────────────────────────────
           _BackupCard(
@@ -322,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen> {
             inProgress: _backupInProgress,
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.xl),
         ],
       ),
     );
@@ -344,22 +350,23 @@ class _ActivationBanner extends StatelessWidget {
       return Row(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+            decoration: ShapeDecoration(
               color: Colors.green.shade50,
-              border: Border.all(color: Colors.green.shade200),
-              borderRadius: BorderRadius.circular(20),
+              shape: StadiumBorder(
+                  side: BorderSide(color: Colors.green.shade200)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.verified_outlined,
-                    size: 14, color: Colors.green.shade700),
-                const SizedBox(width: 4),
+                    size: AppIconSize.sm, color: Colors.green.shade700),
+                const SizedBox(width: AppSpacing.xs),
                 Text(
                   'مفعّل',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: AppFontSize.small,
                     color: Colors.green.shade700,
                     fontWeight: FontWeight.bold,
                   ),
@@ -379,21 +386,23 @@ class _ActivationBanner extends StatelessWidget {
     return Row(
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+          decoration: ShapeDecoration(
             color: color.withValues(alpha: 0.08),
-            border: Border.all(color: color.withValues(alpha: 0.35)),
-            borderRadius: BorderRadius.circular(20),
+            shape: StadiumBorder(
+                side: BorderSide(color: color.withValues(alpha: 0.35))),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.lock_open_outlined, size: 14, color: color.shade700),
-              const SizedBox(width: 4),
+              Icon(Icons.lock_open_outlined,
+                  size: AppIconSize.sm, color: color.shade700),
+              const SizedBox(width: AppSpacing.xs),
               Text(
                 'مجاني: $customerCount / ${AppConstants.trialCustomerLimit}',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: AppFontSize.small,
                   color: color.shade700,
                   fontWeight: FontWeight.bold,
                 ),
@@ -426,29 +435,29 @@ class _BookButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: loading ? color.withValues(alpha: 0.45) : color,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: AppRadius.mdAll,
       elevation: loading ? 0 : 2,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadius.mdAll,
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 26),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl),
           child: Column(
             children: [
               loading
                   ? const SizedBox(
-                      width: 36,
-                      height: 36,
+                      width: AppIconSize.xl,
+                      height: AppIconSize.xl,
                       child: CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2.5),
                     )
-                  : Icon(icon, color: Colors.white, size: 36),
-              const SizedBox(height: 10),
+                  : Icon(icon, color: Colors.white, size: AppIconSize.xl),
+              const SizedBox(height: AppSpacing.md),
               Text(
                 label,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 17,
+                  fontSize: AppFontSize.subtitle,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -476,51 +485,53 @@ class _BackupCard extends StatelessWidget {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.mdAll,
         side: BorderSide(color: Colors.grey.shade200),
       ),
       child: Column(
         children: [
           if (inProgress)
-            ClipRRect(
+            const ClipRRect(
               borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
-              child: const LinearProgressIndicator(minHeight: 3),
+                  BorderRadius.vertical(top: AppRadius.mdRadius),
+              child: LinearProgressIndicator(minHeight: 3),
             ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg, vertical: AppSpacing.md),
             child: Row(
               children: [
                 Icon(Icons.save_outlined,
-                    size: 18, color: Colors.grey.shade500),
-                const SizedBox(width: 8),
+                    size: AppIconSize.md, color: Colors.grey.shade500),
+                const SizedBox(width: AppSpacing.sm),
                 Text(
                   'النسخ الاحتياطي',
                   style: TextStyle(
-                      fontSize: 13,
+                      fontSize: AppFontSize.body,
                       color: Colors.grey.shade600,
                       fontWeight: FontWeight.w600),
                 ),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: inProgress ? null : onImport,
-                  icon: const Icon(Icons.upload_file, size: 16),
+                  icon: const Icon(Icons.upload_file, size: AppIconSize.sm),
                   label: const Text('استيراد'),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.grey.shade700,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                   ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: AppSpacing.xs),
                 TextButton.icon(
                   onPressed: inProgress ? null : onExport,
-                  icon: const Icon(Icons.download_outlined, size: 16),
+                  icon: const Icon(Icons.download_outlined,
+                      size: AppIconSize.sm),
                   label: const Text('تصدير'),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.grey.shade700,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                   ),
                 ),
               ],
@@ -601,16 +612,17 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: AppRadius.lgRadius),
       ),
       builder: (_) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm,
+                    AppSpacing.lg, AppSpacing.md),
                 child: Row(
                   children: [
                     CircleAvatar(
@@ -618,7 +630,7 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
                         customer.name.isNotEmpty ? customer.name[0] : '؟',
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -626,7 +638,8 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
                           Text(
                             customer.name,
                             style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16),
+                                fontWeight: FontWeight.bold,
+                                fontSize: AppFontSize.subtitle),
                           ),
                         ],
                       ),
@@ -638,7 +651,7 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
               if (lira != null)
                 ListTile(
                   leading: const Icon(Icons.account_balance_wallet,
-                      color: Color(0xFF1565C0)),
+                      color: AppTheme.primary),
                   title: const Text('دفتر الليرة'),
                   onTap: () async {
                     Navigator.pop(context);
@@ -648,14 +661,14 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
               if (dollar != null)
                 ListTile(
                   leading: const Icon(Icons.attach_money,
-                      color: Color(0xFF2E7D32)),
+                      color: AppTheme.income),
                   title: const Text('دفتر الدولار'),
                   onTap: () async {
                     Navigator.pop(context);
                     await _navigate(context, customer, dollar);
                   },
                 ),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpacing.xs),
             ],
           ),
         ),
@@ -686,8 +699,9 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search_off, size: 48, color: Colors.grey.shade300),
-            const SizedBox(height: 8),
+            Icon(Icons.search_off,
+                size: AppIconSize.xxl, color: Colors.grey.shade300),
+            const SizedBox(height: AppSpacing.sm),
             Text(
               'لا نتائج لـ "${widget.query}"',
               style: TextStyle(color: Colors.grey.shade500),
@@ -706,8 +720,8 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
         final c = displayResults[i];
         return ListTile(
           dense: widget.compact,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.xxs),
           leading: CircleAvatar(
             radius: widget.compact ? 14 : 18,
             backgroundColor:
@@ -717,7 +731,9 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
               style: TextStyle(
                 color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.bold,
-                fontSize: widget.compact ? 12 : 14,
+                fontSize: widget.compact
+                    ? AppFontSize.small
+                    : AppFontSize.bodyLg,
               ),
             ),
           ),

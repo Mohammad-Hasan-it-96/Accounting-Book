@@ -9,6 +9,8 @@ import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_dimens.dart';
 import '../activation/activation_screen.dart';
 import '../customer_details/customer_details_screen.dart';
 import '../add_edit_customer/add_edit_customer_screen.dart';
@@ -298,11 +300,11 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
                 value: 'name',
                 child: Row(children: [
                   Icon(Icons.sort_by_alpha,
-                      size: 18,
+                      size: AppIconSize.md,
                       color: _sortBy == 'name'
                           ? Theme.of(context).colorScheme.primary
                           : null),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpacing.sm),
                   const Text('ترتيب بالاسم'),
                 ]),
               ),
@@ -310,11 +312,11 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
                 value: 'balance',
                 child: Row(children: [
                   Icon(Icons.attach_money,
-                      size: 18,
+                      size: AppIconSize.md,
                       color: _sortBy == 'balance'
                           ? Theme.of(context).colorScheme.primary
                           : null),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpacing.sm),
                   const Text('ترتيب بالرصيد'),
                 ]),
               ),
@@ -322,11 +324,11 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
                 value: 'last_tx',
                 child: Row(children: [
                   Icon(Icons.schedule,
-                      size: 18,
+                      size: AppIconSize.md,
                       color: _sortBy == 'last_tx'
                           ? Theme.of(context).colorScheme.primary
                           : null),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpacing.sm),
                   const Text('ترتيب بآخر حركة'),
                 ]),
               ),
@@ -349,29 +351,31 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
               _items.length < AppConstants.trialCustomerLimit)
             Container(
               color: Colors.orange.shade50,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
               child: Row(
                 children: [
                   Icon(Icons.warning_amber_rounded,
-                      color: Colors.orange.shade800, size: 18),
-                  const SizedBox(width: 8),
+                      color: Colors.orange.shade800, size: AppIconSize.md),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
                       'اقتربت من الحد المجاني: ${_items.length} / ${AppConstants.trialCustomerLimit} عميل',
                       style: TextStyle(
-                          fontSize: 12, color: Colors.orange.shade900),
+                          fontSize: AppFontSize.small, color: Colors.orange.shade900),
                     ),
                   ),
                   TextButton(
                     style: TextButton.styleFrom(
                         foregroundColor: Colors.orange.shade900,
-                        padding: const EdgeInsets.symmetric(horizontal: 8)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm)),
                     onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(
                           builder: (_) => const ActivationScreen()),
                     ),
-                    child: const Text('تفعيل', style: TextStyle(fontSize: 12)),
+                    child: const Text('تفعيل', style: TextStyle(fontSize: AppFontSize.small)),
                   ),
                 ],
               ),
@@ -379,7 +383,8 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
 
           // ─── بحث فوري ───────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
@@ -402,28 +407,30 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
           // ─── فلتر الأرشيف + عداد النتائج ───────────────────────
           if (!_loading)
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md, 0, AppSpacing.md, AppSpacing.xs),
               child: Row(
                 children: [
                   FilterChip(
-                    label: const Text('المؤرشفون', style: TextStyle(fontSize: 12)),
+                    label: const Text('المؤرشفون',
+                        style: TextStyle(fontSize: AppFontSize.small)),
                     selected: _showArchived,
                     avatar: Icon(
                       Icons.archive_outlined,
-                      size: 14,
+                      size: AppIconSize.sm,
                       color: _showArchived
                           ? Theme.of(context).colorScheme.onPrimary
                           : Colors.grey.shade600,
                     ),
                     onSelected: (v) => setState(() => _showArchived = v),
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
                   ),
                   const Spacer(),
                   if (_searchCtrl.text.isNotEmpty || _showArchived)
                     Text(
                       '${displayed.length} نتيجة',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                      style: TextStyle(fontSize: AppFontSize.small, color: Colors.grey.shade500),
                     ),
                 ],
               ),
@@ -439,8 +446,9 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.people_outline,
-                                size: 48, color: Colors.grey.shade300),
-                            const SizedBox(height: 8),
+                                size: AppIconSize.empty,
+                                color: Colors.grey.shade300),
+                            const SizedBox(height: AppSpacing.sm),
                             Text(
                               _searchCtrl.text.isNotEmpty
                                   ? 'لا نتائج لـ "${_searchCtrl.text}"'
@@ -552,7 +560,8 @@ class _SummaryBar extends StatelessWidget {
 
     return Container(
       color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.06),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
@@ -565,12 +574,12 @@ class _SummaryBar extends StatelessWidget {
               label: 'دائن',
               value: FormatHelper.formatAmount(totalCredit),
               icon: Icons.arrow_downward,
-              color: const Color(0xFF2E7D32)),
+              color: AppTheme.income),
           _StatItem(
               label: 'مدين',
               value: FormatHelper.formatAmount(totalDebit),
               icon: Icons.arrow_upward,
-              color: const Color(0xFFC62828)),
+              color: AppTheme.expense),
         ],
       ),
     );
@@ -595,13 +604,13 @@ class _StatItem extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: c),
-        const SizedBox(height: 2),
+        Icon(icon, size: AppIconSize.sm, color: c),
+        const SizedBox(height: AppSpacing.xxs),
         Text(value,
             style: TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 13, color: c)),
+                fontWeight: FontWeight.bold, fontSize: AppFontSize.body, color: c)),
         Text(label,
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            style: TextStyle(fontSize: AppFontSize.micro, color: Colors.grey.shade600)),
       ],
     );
   }
@@ -644,8 +653,8 @@ class _CustomerTile extends StatelessWidget {
     final avatarBg = isZero
         ? Colors.grey.shade400
         : balance > 0
-            ? const Color(0xFF2E7D32)
-            : const Color(0xFFC62828);
+            ? AppTheme.income
+            : AppTheme.expense;
 
     final balanceColor = isZero
         ? Colors.grey.shade500
@@ -662,16 +671,17 @@ class _CustomerTile extends StatelessWidget {
     final hasNotes = notes.isNotEmpty;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      margin: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.xs),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.mdAll,
         side: BorderSide(color: Colors.grey.shade200),
       ),
       child: ListTile(
         onTap: onTap,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: AppSpacing.xxs),
         // ─── الأفاتار ──────────────────────────────────────────────
         leading: Stack(
           clipBehavior: Clip.none,
@@ -684,7 +694,7 @@ class _CustomerTile extends StatelessWidget {
                 style: TextStyle(
                   color: avatarBg,
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
+                  fontSize: AppFontSize.subtitle,
                 ),
               ),
             ),
@@ -693,7 +703,7 @@ class _CustomerTile extends StatelessWidget {
                 right: -4,
                 bottom: -2,
                 child: Container(
-                  padding: const EdgeInsets.all(2),
+                  padding: const EdgeInsets.all(AppSpacing.xxs),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade600,
                     shape: BoxShape.circle,
@@ -711,20 +721,22 @@ class _CustomerTile extends StatelessWidget {
                 item.customer.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: AppFontSize.subtitle),
               ),
             ),
             if (item.customer.isArchived)
               Container(
-                margin: const EdgeInsets.only(right: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
+                margin: const EdgeInsets.only(right: AppSpacing.xs),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+                decoration: ShapeDecoration(
                   color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(4),
+                  shape: const StadiumBorder(),
                 ),
                 child: Text(
                   'محفوظ',
-                  style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
+                  style: TextStyle(
+                      fontSize: AppFontSize.micro, color: Colors.grey.shade600),
                 ),
               ),
           ],
@@ -738,7 +750,7 @@ class _CustomerTile extends StatelessWidget {
               txSubtitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: AppFontSize.small, color: Colors.grey.shade500),
             ),
             if (hasNotes)
               Text(
@@ -746,7 +758,7 @@ class _CustomerTile extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontSize: 11,
+                    fontSize: AppFontSize.caption,
                     color: Colors.grey.shade400,
                     fontStyle: FontStyle.italic),
               ),
@@ -765,19 +777,19 @@ class _CustomerTile extends StatelessWidget {
                   style: TextStyle(
                     color: balanceColor,
                     fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                    fontSize: AppFontSize.subtitle,
                   ),
                 ),
                 Text(
                   currencyName,
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: AppFontSize.micro),
                 ),
               ],
             ),
-            const SizedBox(width: 2),
+            const SizedBox(width: AppSpacing.xxs),
             PopupMenuButton<String>(
               icon: Icon(Icons.more_vert,
-                  size: 20, color: Colors.grey.shade400),
+                  size: AppIconSize.md, color: Colors.grey.shade400),
               tooltip: 'خيارات',
               onSelected: (v) {
                 if (v == 'edit') onEdit();
@@ -788,24 +800,24 @@ class _CustomerTile extends StatelessWidget {
                 const PopupMenuItem<String>(
                   value: 'edit',
                   child: Row(children: [
-                    Icon(Icons.edit_outlined, size: 18),
-                    SizedBox(width: 8),
+                    Icon(Icons.edit_outlined, size: AppIconSize.md),
+                    SizedBox(width: AppSpacing.sm),
                     Text('تعديل'),
                   ]),
                 ),
                 const PopupMenuItem<String>(
                   value: 'share',
                   child: Row(children: [
-                    Icon(Icons.share_outlined, size: 18),
-                    SizedBox(width: 8),
+                    Icon(Icons.share_outlined, size: AppIconSize.md),
+                    SizedBox(width: AppSpacing.sm),
                     Text('مشاركة الرصيد'),
                   ]),
                 ),
                 const PopupMenuItem<String>(
                   value: 'delete',
                   child: Row(children: [
-                    Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                    SizedBox(width: 8),
+                    Icon(Icons.delete_outline, size: AppIconSize.md, color: Colors.red),
+                    SizedBox(width: AppSpacing.sm),
                     Text('حذف', style: TextStyle(color: Colors.red)),
                   ]),
                 ),

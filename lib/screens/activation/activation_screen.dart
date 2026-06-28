@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/theme/app_dimens.dart';
 import '../home/home_screen.dart';
 class ActivationScreen extends StatefulWidget {
   const ActivationScreen({super.key});
@@ -116,13 +117,14 @@ class _ActivationScreenState extends State<ActivationScreen> {
         child: _loadingDeviceId
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xxl, vertical: AppSpacing.xl),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const SizedBox(height: 20),
+                      const SizedBox(height: AppSpacing.xl),
                       // ─── أيقونة ──────────────────────────────────
                       Center(
                         child: Container(
@@ -136,19 +138,19 @@ class _ActivationScreenState extends State<ActivationScreen> {
                               size: 38, color: primary),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.lg),
                       // ─── العنوان ─────────────────────────────────
                       Text('تفعيل دفتر الحسابات',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
+                              fontSize: AppFontSize.headline, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: AppSpacing.sm),
                        Text(
                          'التطبيق مجاني لإدارة حتى 50 حسابًا.\nبعد ذلك، يكفي التفعيل مرة واحدة للاستخدام غير المحدود.',
                          textAlign: TextAlign.center,
-                         style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.5),
+                         style: TextStyle(fontSize: AppFontSize.body, color: Colors.grey.shade600, height: 1.5),
                        ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: AppSpacing.xxl),
                       // ─── حقل الاسم ───────────────────────────────
                       TextFormField(
                         controller: _nameCtrl,
@@ -160,7 +162,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
                         validator: (v) =>
                             (v == null || v.trim().isEmpty) ? 'الاسم مطلوب' : null,
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: AppSpacing.lg),
                       // ─── حقل الهاتف ──────────────────────────────
                       TextFormField(
                         controller: _phoneCtrl,
@@ -173,7 +175,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
                         validator: (v) =>
                             (v == null || v.trim().isEmpty) ? 'رقم الهاتف مطلوب' : null,
                       ),
-                      const SizedBox(height: 22),
+                      const SizedBox(height: AppSpacing.xxl),
                       // ─── زر إرسال الطلب ──────────────────────────
                       ElevatedButton.icon(
                         onPressed: (_sendingRequest || _checkingStatus)
@@ -190,12 +192,11 @@ class _ActivationScreenState extends State<ActivationScreen> {
                         label: Text(
                             _sendingRequest ? 'جارٍ الإرسال...' : 'إرسال طلب التفعيل'),
                         style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
                           backgroundColor: primary,
                           foregroundColor: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.md),
                       // ─── زر التحقق ───────────────────────────────
                       OutlinedButton.icon(
                         onPressed: (_sendingRequest || _checkingStatus)
@@ -212,23 +213,20 @@ class _ActivationScreenState extends State<ActivationScreen> {
                         label: Text(_checkingStatus
                             ? 'جارٍ التحقق...'
                             : 'تحقق من التفعيل'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: AppSpacing.xl),
                       // ─── البانر ──────────────────────────────────
                       if (_banner != null) _BannerWidget(banner: _banner!),
-                      if (_banner != null) const SizedBox(height: 16),
+                      if (_banner != null) const SizedBox(height: AppSpacing.lg),
                       // ─── بطاقة معرّف الجهاز ──────────────────────
                       _DeviceIdCard(
                         deviceId: _deviceId ?? '',
                         onCopy: _copyDeviceId,
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: AppSpacing.xl),
                       // ─── أزرار التواصل ────────────────────────────
                       const _ContactRow(),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.lg),
                     ],
                   ),
                 ),
@@ -271,21 +269,21 @@ class _BannerWidget extends StatelessWidget {
         icon   = Icons.error_outline;
     }
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: bg,
         border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.mdAll,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: fg, size: 20),
-          const SizedBox(width: 10),
+          Icon(icon, color: fg, size: AppIconSize.md),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
               banner.message,
-              style: TextStyle(color: fg, fontSize: 13, height: 1.5),
+              style: TextStyle(color: fg, fontSize: AppFontSize.body, height: 1.5),
             ),
           ),
         ],
@@ -302,43 +300,46 @@ class _DeviceIdCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
               Icon(Icons.fingerprint,
-                  size: 18,
+                  size: AppIconSize.md,
                   color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.sm),
               const Text('معرّف الجهاز',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: AppFontSize.body)),
               const Spacer(),
               IconButton(
                 onPressed: onCopy,
-                icon: const Icon(Icons.copy, size: 16),
+                icon: const Icon(Icons.copy, size: AppIconSize.sm),
                 tooltip: 'نسخ',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),
             ]),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
               decoration: BoxDecoration(
                 color: Colors.grey.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadius.smAll,
               ),
               child: SelectableText(
                 deviceId,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                style: const TextStyle(
+                    fontFamily: 'monospace', fontSize: AppFontSize.caption),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
             Text(
               'شارك هذا المعرّف مع المطوّر لتسريع عملية التفعيل.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: AppFontSize.caption, color: Colors.grey.shade500),
             ),
           ],
         ),
@@ -363,16 +364,16 @@ class _ContactRow extends StatelessWidget {
     return Column(
       children: [
         Text('للتواصل مع المطوّر عبر واتساب:',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-        const SizedBox(height: 8),
+            style: TextStyle(fontSize: AppFontSize.small, color: Colors.grey.shade600)),
+        const SizedBox(height: AppSpacing.sm),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: () => _open(context,
                 'https://wa.me/${SettingsService.supportWhatsApp}?text=${Uri.encodeComponent("مرحباً، أريد تفعيل دفتر الحسابات")}'),
-            icon: const Icon(Icons.chat, size: 16, color: Color(0xFF25D366)),
+            icon: const Icon(Icons.chat, size: AppIconSize.sm, color: Color(0xFF25D366)),
             label: const Text('مراسلة على واتساب',
-                style: TextStyle(color: Color(0xFF25D366), fontSize: 13)),
+                style: TextStyle(color: Color(0xFF25D366), fontSize: AppFontSize.body)),
           ),
         ),
       ],

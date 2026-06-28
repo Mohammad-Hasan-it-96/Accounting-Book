@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import '../../core/services/pin_service.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_dimens.dart';
 
 class LockScreen extends StatefulWidget {
   const LockScreen({super.key});
@@ -120,7 +122,7 @@ class _LockScreenState extends State<LockScreen> {
   Widget build(BuildContext context) {
     final isLocked = _lockedUntil != null;
     return Scaffold(
-      backgroundColor: const Color(0xFF1565C0),
+      backgroundColor: AppTheme.primary,
       body: SafeArea(
         child: Column(
           children: [
@@ -128,23 +130,28 @@ class _LockScreenState extends State<LockScreen> {
             Icon(
               isLocked ? Icons.lock : Icons.lock_outline,
               color: Colors.white,
-              size: 48,
+              size: AppIconSize.xxl,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
             Text(
               isLocked ? 'التطبيق مقفل مؤقتاً' : 'أدخل رمز القفل',
               style: const TextStyle(
-                  color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  color: Colors.white,
+                  fontSize: AppFontSize.headline,
+                  fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
             if (isLocked)
               Text(
                 'يُفتح خلال: ${_formatCountdown(_lockedUntil!)}',
-                style: const TextStyle(color: Colors.white70, fontSize: 16),
+                style: const TextStyle(
+                    color: Colors.white70, fontSize: AppFontSize.subtitle),
               )
             else if (_error != null)
-              Text(_error!, style: const TextStyle(color: Colors.redAccent, fontSize: 14)),
-            const SizedBox(height: 24),
+              Text(_error!,
+                  style: const TextStyle(
+                      color: Colors.redAccent, fontSize: AppFontSize.bodyLg)),
+            const SizedBox(height: AppSpacing.xxl),
             if (!isLocked)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -153,7 +160,7 @@ class _LockScreenState extends State<LockScreen> {
                   (i) => Container(
                     width: 16,
                     height: 16,
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: i < _entered.length
@@ -170,7 +177,7 @@ class _LockScreenState extends State<LockScreen> {
                 onDelete: _backspace,
                 onBiometric: _biometricAvailable ? _tryBiometric : null,
               ),
-            const SizedBox(height: 32),
+            const SizedBox(height: AppSpacing.xxxl),
           ],
         ),
       ),
@@ -236,7 +243,7 @@ class _PadButton extends StatelessWidget {
       child: Container(
         width: 72,
         height: 72,
-        margin: const EdgeInsets.all(6),
+        margin: const EdgeInsets.all(AppSpacing.sm),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: Colors.white.withValues(alpha: 0.12),
@@ -245,8 +252,10 @@ class _PadButton extends StatelessWidget {
           child: label != null
               ? Text(label!,
                   style: const TextStyle(
-                      color: Colors.white, fontSize: 24, fontWeight: FontWeight.w500))
-              : Icon(icon, color: Colors.white, size: 24),
+                      color: Colors.white,
+                      fontSize: AppFontSize.headline,
+                      fontWeight: FontWeight.w500))
+              : Icon(icon, color: Colors.white, size: AppIconSize.lg),
         ),
       ),
     );

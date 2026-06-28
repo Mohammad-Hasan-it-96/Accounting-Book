@@ -11,6 +11,8 @@ import '../../core/helpers/customer_helper.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../core/helpers/statement_helper.dart';
 import '../../core/services/pdf_service.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_dimens.dart';
 import '../add_edit_transaction/add_edit_transaction_screen.dart';
 
 class CustomerDetailsScreen extends StatefulWidget {
@@ -300,8 +302,8 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     final balanceColor = _balance == 0
         ? Colors.grey
         : _balance > 0
-            ? const Color(0xFF2E7D32)
-            : const Color(0xFFC62828);
+            ? AppTheme.income
+            : AppTheme.expense;
 
     return PopScope<bool>(
       canPop: false,
@@ -386,19 +388,23 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                 ),
                 if (_fromDate != null || _toDate != null)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: Text(
                         'ملخص مفلتر'
                         '${_fromDate != null ? ': من ${FormatHelper.formatDateFromDateTime(_fromDate!)}' : ''}'
                         '${_toDate != null ? ' — ${FormatHelper.formatDateFromDateTime(_toDate!)}' : ''}',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        style: TextStyle(
+                            fontSize: AppFontSize.caption,
+                            color: Colors.grey.shade600),
                       ),
                     ),
                   ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.xxs),
                   child: Row(
                     children: [
                       Expanded(
@@ -412,7 +418,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: OutlinedButton(
                           onPressed: _pickToDate,
@@ -435,7 +441,8 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                 ),
                 // ─── فلتر نوع الحركة ─────────────────────────────────
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md, 0, AppSpacing.md, AppSpacing.xs),
                   child: Row(
                     children: [
                       _TypeChip(
@@ -443,18 +450,18 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                         selected: _txTypeFilter == 0,
                         onTap: () => setState(() => _txTypeFilter = 0),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: AppSpacing.sm),
                       _TypeChip(
                         label: 'مطلوب',
                         selected: _txTypeFilter == 1,
-                        color: const Color(0xFF2E7D32),
+                        color: AppTheme.income,
                         onTap: () => setState(() => _txTypeFilter = 1),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: AppSpacing.sm),
                       _TypeChip(
                         label: 'مدفوع',
                         selected: _txTypeFilter == -1,
-                        color: const Color(0xFFC62828),
+                        color: AppTheme.expense,
                         onTap: () => setState(() => _txTypeFilter = -1),
                       ),
                     ],
@@ -462,17 +469,17 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                 ),
                 // ─── عنوان قسم الحركات ──────────────────────────────
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
                   child: Row(
                     children: [
-                      const Icon(Icons.receipt_long, size: 16,
+                      const Icon(Icons.receipt_long, size: AppIconSize.sm,
                           color: Colors.grey),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: AppSpacing.sm),
                       Text(
                         'الحركات (${visibleTransactions.length})',
                         style: TextStyle(
-                            fontSize: 13,
+                            fontSize: AppFontSize.body,
                             color: Colors.grey.shade600,
                             fontWeight: FontWeight.w600),
                       ),
@@ -488,8 +495,9 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.receipt_long,
-                                  size: 48, color: Colors.grey.shade300),
-                              const SizedBox(height: 8),
+                                  size: AppIconSize.empty,
+                                  color: Colors.grey.shade300),
+                              const SizedBox(height: AppSpacing.sm),
                               Text('لا توجد حركات',
                                   style: TextStyle(
                                       color: Colors.grey.shade500)),
@@ -557,7 +565,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
              await _load();
            }
          },
-         child: const Icon(Icons.add, size: 30),
+         child: const Icon(Icons.add, size: AppIconSize.xl),
        ),
       ),
     );
@@ -585,11 +593,12 @@ class _CustomerHeader extends StatelessWidget {
     final groupName = safeGroupName(customer);
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xs),
+      padding: const EdgeInsets.all(AppSpacing.lg),
        decoration: BoxDecoration(
          color: balanceColor.withValues(alpha: 0.07),
-         borderRadius: BorderRadius.circular(12),
+         borderRadius: AppRadius.mdAll,
          border: Border.all(color: balanceColor.withValues(alpha: 0.25)),
          boxShadow: [
            BoxShadow(
@@ -614,7 +623,7 @@ class _CustomerHeader extends StatelessWidget {
                       color: balanceColor, fontWeight: FontWeight.bold),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -622,28 +631,31 @@ class _CustomerHeader extends StatelessWidget {
                     Text(
                       customer.name,
                       style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
+                          fontWeight: FontWeight.bold,
+                          fontSize: AppFontSize.subtitle),
                     ),
                     if (customer.gsm != null && customer.gsm!.isNotEmpty)
                       Text(
                         customer.gsm!,
                         style: TextStyle(
-                            color: Colors.grey.shade600, fontSize: 13),
+                            color: Colors.grey.shade600,
+                            fontSize: AppFontSize.body),
                       ),
                     if (groupName != null)
                       Text(
                         'المجموعة: $groupName',
                         style: TextStyle(
-                            color: Colors.grey.shade600, fontSize: 12),
+                            color: Colors.grey.shade600,
+                            fontSize: AppFontSize.small),
                       ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
           const Divider(height: 1),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
           // ─── الرصيد + عدد الحركات ────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -654,13 +666,14 @@ class _CustomerHeader extends StatelessWidget {
                 children: [
                   Text('الرصيد الحالي',
                       style: TextStyle(
-                          fontSize: 11, color: Colors.grey.shade500)),
-                  const SizedBox(height: 2),
+                          fontSize: AppFontSize.caption,
+                          color: Colors.grey.shade500)),
+                  const SizedBox(height: AppSpacing.xxs),
                    Text(
                      '${FormatHelper.formatAmount(balance)} ${currency.displayName}',
                      style: TextStyle(
                          color: balanceColor,
-                         fontSize: 28,
+                         fontSize: AppFontSize.display,
                          fontWeight: FontWeight.bold),
                    ),
                 ],
@@ -668,20 +681,21 @@ class _CustomerHeader extends StatelessWidget {
               // عدد الحركات
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
+                    horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                decoration: ShapeDecoration(
                   color: Colors.grey.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
+                  shape: const StadiumBorder(),
                 ),
                 child: Row(
                   children: [
                     Icon(Icons.receipt_long,
-                        size: 14, color: Colors.grey.shade600),
-                    const SizedBox(width: 4),
+                        size: AppIconSize.sm, color: Colors.grey.shade600),
+                    const SizedBox(width: AppSpacing.xs),
                     Text(
                       '$txCount حركة',
                       style: TextStyle(
-                          fontSize: 13, color: Colors.grey.shade700),
+                          fontSize: AppFontSize.body,
+                          color: Colors.grey.shade700),
                     ),
                   ],
                 ),
@@ -713,21 +727,23 @@ class _TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isIn = tx.inFlag == 1;
-    final color = isIn ? const Color(0xFF2E7D32) : const Color(0xFFC62828);
+    final color = isIn ? AppTheme.income : AppTheme.expense;
     final label = BalanceHelper.transactionLabel(tx.inFlag);
     final hasRemarks = tx.remarks != null && tx.remarks!.isNotEmpty;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      margin: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.xs),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md, AppSpacing.md, AppSpacing.xs, AppSpacing.md),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // ─── أيقونة النوع ─────────────────────────────────────
             Container(
-              width: 38,
-              height: 38,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
@@ -735,10 +751,10 @@ class _TransactionTile extends StatelessWidget {
               child: Icon(
                 isIn ? Icons.arrow_downward : Icons.arrow_upward,
                 color: color,
-                size: 18,
+                size: AppIconSize.md,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpacing.md),
             // ─── التفاصيل (نوع + تاريخ + ملاحظة) ────────────────
             Expanded(
               child: Column(
@@ -747,35 +763,37 @@ class _TransactionTile extends StatelessWidget {
                   // نوع الحركة كـ badge
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
+                        horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+                    decoration: ShapeDecoration(
                       color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      shape: const StadiumBorder(),
                     ),
                     child: Text(
                       label,
                       style: TextStyle(
                         color: color,
-                        fontSize: 11,
+                        fontSize: AppFontSize.caption,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: AppSpacing.xs),
                    // التاريخ
                    if (tx.date != null)
                      Text(
                        FormatHelper.formatDate(tx.date),
                        style: TextStyle(
-                           fontSize: 13, color: Colors.grey.shade500),
+                           fontSize: AppFontSize.body,
+                           color: Colors.grey.shade500),
                      ),
                   // الملاحظة
                   if (hasRemarks) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: AppSpacing.xxs),
                     Text(
                        tx.remarks!,
                        style: TextStyle(
-                           fontSize: 12, color: Colors.grey.shade600),
+                           fontSize: AppFontSize.small,
+                           color: Colors.grey.shade600),
                        maxLines: 1,
                        overflow: TextOverflow.ellipsis,
                     ),
@@ -783,7 +801,7 @@ class _TransactionTile extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.sm),
             // ─── المبلغ + أزرار ───────────────────────────────────
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -793,7 +811,7 @@ class _TransactionTile extends StatelessWidget {
                    FormatHelper.formatAmount(tx.out),
                    style: TextStyle(
                      color: color,
-                     fontSize: 19,
+                     fontSize: AppFontSize.title,
                      fontWeight: FontWeight.bold,
                      letterSpacing: 0.3,
                    ),
@@ -801,43 +819,43 @@ class _TransactionTile extends StatelessWidget {
                 Text(
                   currencyName,
                   style: TextStyle(
-                      fontSize: 10, color: Colors.grey.shade400),
+                      fontSize: AppFontSize.micro, color: Colors.grey.shade400),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppSpacing.xxs),
                 // الرصيد الجاري
                 Text(
                   'رصيد: ${FormatHelper.formatAmount(runningBalance)}',
                   style: TextStyle(
-                      fontSize: 10,
+                      fontSize: AppFontSize.micro,
                       color: runningBalance == 0
                           ? Colors.grey
                           : runningBalance > 0
-                              ? const Color(0xFF2E7D32)
-                              : const Color(0xFFC62828)),
+                              ? AppTheme.income
+                              : AppTheme.expense),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppSpacing.xxs),
                 // أزرار تعديل وحذف
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     SizedBox(
-                      width: 30,
-                      height: 30,
+                      width: 32,
+                      height: 32,
                       child: IconButton(
                         padding: EdgeInsets.zero,
                         icon: Icon(Icons.edit_outlined,
-                            size: 16, color: Colors.grey.shade500),
+                            size: AppIconSize.sm, color: Colors.grey.shade500),
                         onPressed: onEdit,
                         tooltip: 'تعديل',
                       ),
                     ),
                     SizedBox(
-                      width: 30,
-                      height: 30,
+                      width: 32,
+                      height: 32,
                       child: IconButton(
                         padding: EdgeInsets.zero,
                         icon: const Icon(Icons.delete_outline,
-                            size: 16, color: Colors.red),
+                            size: AppIconSize.sm, color: Colors.red),
                         onPressed: onDelete,
                         tooltip: 'حذف',
                       ),
@@ -874,16 +892,17 @@ class _TypeChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: BoxDecoration(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+        decoration: ShapeDecoration(
           color: selected ? c.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? c : Colors.grey.shade300),
+          shape: StadiumBorder(
+              side: BorderSide(color: selected ? c : Colors.grey.shade300)),
         ),
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: AppFontSize.small,
             color: selected ? c : Colors.grey.shade600,
             fontWeight: selected ? FontWeight.bold : FontWeight.normal,
           ),
@@ -920,10 +939,11 @@ class _SummarySection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.xs),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.mdAll,
         color: Colors.grey.withValues(alpha: 0.06),
       ),
       child: Row(
@@ -932,14 +952,14 @@ class _SummarySection extends StatelessWidget {
             child: _SummaryValue(
               title: 'إجمالي مطلوب',
               value: FormatHelper.formatAmount(summary.totalIn),
-              color: const Color(0xFF2E7D32),
+              color: AppTheme.income,
             ),
           ),
           Expanded(
             child: _SummaryValue(
               title: 'إجمالي مدفوع',
               value: FormatHelper.formatAmount(summary.totalOut),
-              color: const Color(0xFFC62828),
+              color: AppTheme.expense,
             ),
           ),
           Expanded(
@@ -974,9 +994,10 @@ class _SummaryValue extends StatelessWidget {
       children: [
         Text(
           title,
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+          style: TextStyle(
+              fontSize: AppFontSize.caption, color: Colors.grey.shade600),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: AppSpacing.xxs),
         Text(
           value,
           maxLines: 1,
@@ -984,7 +1005,7 @@ class _SummaryValue extends StatelessWidget {
           style: TextStyle(
             color: color,
             fontWeight: FontWeight.bold,
-            fontSize: 13,
+            fontSize: AppFontSize.body,
           ),
         ),
       ],

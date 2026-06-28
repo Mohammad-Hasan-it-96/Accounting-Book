@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/theme/app_dimens.dart';
 import '../../providers/app_provider.dart';
 
 class GroupsScreen extends StatefulWidget {
@@ -179,18 +180,19 @@ class _GroupsScreenState extends State<GroupsScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.group_work_outlined,
-                          size: 64, color: Colors.grey.shade300),
-                      const SizedBox(height: 12),
+                          size: AppIconSize.empty, color: Colors.grey.shade300),
+                      const SizedBox(height: AppSpacing.md),
                       Text(
                         'لا توجد مجموعات',
                         style: TextStyle(
-                            fontSize: 16, color: Colors.grey.shade500),
+                            fontSize: AppFontSize.subtitle,
+                            color: Colors.grey.shade500),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: AppSpacing.sm),
                       Text(
                         'اضغط + لإضافة مجموعة جديدة',
                         style: TextStyle(
-                            fontSize: 13, color: Colors.grey.shade400),
+                            fontSize: AppFontSize.body, color: Colors.grey.shade400),
                       ),
                     ],
                   ),
@@ -209,7 +211,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                         child: Icon(
                           Icons.group_work_outlined,
                           color: Theme.of(context).colorScheme.primary,
-                          size: 20,
+                          size: AppIconSize.md,
                         ),
                       ),
                       title: Text(g.name,
@@ -219,11 +221,11 @@ class _GroupsScreenState extends State<GroupsScreen> {
                             ? 'لا يوجد عملاء'
                             : '${g.customerCount} عميل',
                         style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade500),
+                            fontSize: AppFontSize.small, color: Colors.grey.shade500),
                       ),
                       trailing: PopupMenuButton<String>(
                         icon: Icon(Icons.more_vert,
-                            size: 20, color: Colors.grey.shade400),
+                            size: AppIconSize.md, color: Colors.grey.shade400),
                         tooltip: 'خيارات',
                         onSelected: (v) {
                           if (v == 'rename') _renameGroup(g);
@@ -233,8 +235,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
                           const PopupMenuItem(
                             value: 'rename',
                             child: Row(children: [
-                              Icon(Icons.edit_outlined, size: 18),
-                              SizedBox(width: 8),
+                              Icon(Icons.edit_outlined, size: AppIconSize.md),
+                              SizedBox(width: AppSpacing.sm),
                               Text('تعديل الاسم'),
                             ]),
                           ),
@@ -242,8 +244,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
                             value: 'delete',
                             child: Row(children: [
                               Icon(Icons.delete_outline,
-                                  size: 18, color: Colors.red),
-                              SizedBox(width: 8),
+                                  size: AppIconSize.md, color: Colors.red),
+                              SizedBox(width: AppSpacing.sm),
                               Text('حذف',
                                   style: TextStyle(color: Colors.red)),
                             ]),

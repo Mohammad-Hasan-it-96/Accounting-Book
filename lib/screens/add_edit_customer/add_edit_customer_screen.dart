@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/theme/app_dimens.dart';
 import '../../data/models/customer.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
@@ -293,7 +294,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
           body: Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
                 // الاسم
                 TextFormField(
@@ -306,7 +307,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                   validator: (v) =>
                       v == null || v.trim().isEmpty ? 'الاسم مطلوب' : null,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
                 // رقم الهاتف
                 TextFormField(
                   controller: _gsmCtrl,
@@ -317,7 +318,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                   ),
                   onChanged: (_) => _markDirty(),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
                 // المجموعة
                 DropdownButtonFormField<int?>(
                   initialValue: _groups.any((g) => g.id == _selectedGroupId)
@@ -344,7 +345,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                     _markDirty();
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
                 // الملاحظات
                 TextFormField(
                   controller: _notesCtrl,
@@ -356,7 +357,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                   ),
                   onChanged: (_) => _markDirty(),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
                 // النوع
                 DropdownButtonFormField<int?>(
                   initialValue: _types.any((t) => t.id == _selectedTypeId)
@@ -385,7 +386,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                 ),
                 // أرشفة (في وضع التعديل فقط)
                 if (widget.customer != null) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppSpacing.xs),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     secondary: const Icon(Icons.archive_outlined),
@@ -398,7 +399,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                     },
                   ),
                 ],
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.xxl),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(

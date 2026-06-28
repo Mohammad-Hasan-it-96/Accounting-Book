@@ -5,6 +5,7 @@ import '../../data/models/customer.dart';
 import '../../data/models/currency.dart';
 import '../../data/models/transaction.dart' as tx_model;
 import '../../core/helpers/format_helper.dart';
+import '../../core/theme/app_dimens.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/currency_repository.dart';
 import '../../data/repositories/transaction_repository.dart';
@@ -223,18 +224,21 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.people_outline, size: 64, color: Colors.grey.shade300),
-              const SizedBox(height: 16),
+              Icon(Icons.people_outline,
+                  size: AppIconSize.empty, color: Colors.grey.shade300),
+              const SizedBox(height: AppSpacing.lg),
               Text(
                 'لا يوجد عملاء',
-                style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                style: TextStyle(
+                    fontSize: AppFontSize.subtitle, color: Colors.grey.shade600),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               Text(
                 'أضف عميلاً أولاً ثم أضف الحركة',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                style: TextStyle(
+                    fontSize: AppFontSize.body, color: Colors.grey.shade400),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppSpacing.xxl),
               ElevatedButton.icon(
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.arrow_back),
@@ -288,7 +292,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
           body: Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
                 DropdownButtonFormField<int>(
                   initialValue: _customers.any((c) => c.id == _selectedCustomerId)
@@ -313,7 +317,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                   },
                   validator: (v) => v == null ? 'العميل مطلوب' : null,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.lg),
 
                 DropdownButtonFormField<int>(
                   initialValue: _currencies.any((c) => c.id == _selectedCurrencyId)
@@ -338,7 +342,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                   },
                   validator: (v) => v == null ? 'العملة مطلوبة' : null,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
 
                 // المبلغ
                 TextFormField(
@@ -358,7 +362,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
 
                 // التاريخ
                 InkWell(
@@ -366,7 +370,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                     await _pickDate();
                     _markDirty();
                   },
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: AppRadius.smAll,
                   child: InputDecorator(
                     decoration: const InputDecoration(
                       labelText: 'التاريخ *',
@@ -384,7 +388,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
 
                 DropdownButtonFormField<int>(
                   initialValue: _normalizeInFlag(_inFlag),
@@ -406,7 +410,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                   },
                   validator: (v) => v == null ? 'نوع الحركة مطلوب' : null,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.md),
 
                 // ملاحظة
                 TextFormField(
@@ -418,7 +422,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                   ),
                   onChanged: (_) => _markDirty(),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.xxl),
 
                 SizedBox(
                   width: double.infinity,

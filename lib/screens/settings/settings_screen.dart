@@ -16,6 +16,7 @@ import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
+import '../../core/theme/app_dimens.dart';
 import '../../providers/theme_provider.dart';
 import '../activation/activation_screen.dart';
 import '../groups/groups_screen.dart';
@@ -433,7 +434,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    customerCount: _customerCount,
                  ),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.sm),
 
                 // ──────────────────────────────────────────────────────────
                 // المظهر
@@ -512,26 +513,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                  if (_lastBackupDate == null ||
                      DateTime.now().difference(_lastBackupDate!).inDays >= 7)
                    Container(
-                     margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                     margin: const EdgeInsets.fromLTRB(
+                         AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
                      padding: const EdgeInsets.symmetric(
-                         horizontal: 12, vertical: 8),
+                         horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                      decoration: BoxDecoration(
                        color: Colors.orange.shade50,
                        border: Border.all(color: Colors.orange.shade200),
-                       borderRadius: BorderRadius.circular(8),
+                       borderRadius: AppRadius.smAll,
                      ),
                      child: Row(
                        children: [
                          Icon(Icons.warning_amber_rounded,
-                             color: Colors.orange.shade700, size: 18),
-                         const SizedBox(width: 8),
+                             color: Colors.orange.shade700, size: AppIconSize.md),
+                         const SizedBox(width: AppSpacing.sm),
                          Expanded(
                            child: Text(
                              _lastBackupDate == null
                                  ? 'لم تُؤخذ نسخة احتياطية بعد. احرص على حماية بياناتك!'
                                  : 'آخر نسخة احتياطية منذ ${DateTime.now().difference(_lastBackupDate!).inDays} يوم. يُنصح بأخذ نسخة.',
                              style: TextStyle(
-                                 fontSize: 12, color: Colors.orange.shade900),
+                                 fontSize: AppFontSize.small, color: Colors.orange.shade900),
                            ),
                          ),
                        ],
@@ -589,7 +591,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   leading: const Icon(Icons.chat, color: Color(0xFF25D366)),
                   title: const Text('واتساب'),
                   subtitle: const Text('تواصل مع المطوّر'),
-                  trailing: const Icon(Icons.open_in_new, size: 16),
+                  trailing: const Icon(Icons.open_in_new, size: AppIconSize.sm),
                   onTap: () => _openUrl(
                       'https://wa.me/${SettingsService.supportWhatsApp}'
                       '?text=${Uri.encodeComponent("مرحباً، أحتاج مساعدة في دفتر الحسابات")}'),
@@ -598,14 +600,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   leading: const Icon(Icons.send, color: Color(0xFF0088CC)),
                   title: const Text('تيليغرام'),
                   subtitle: const Text('تواصل مع المطوّر'),
-                  trailing: const Icon(Icons.open_in_new, size: 16),
+                  trailing: const Icon(Icons.open_in_new, size: AppIconSize.sm),
                   onTap: () => _openUrl(SettingsService.supportTelegram),
                 ),
                 ListTile(
                   leading: const Icon(Icons.email_outlined),
                   title: const Text('البريد الإلكتروني'),
                   subtitle: const Text(SettingsService.supportEmail),
-                  trailing: const Icon(Icons.open_in_new, size: 16),
+                  trailing: const Icon(Icons.open_in_new, size: AppIconSize.sm),
                   onTap: () =>
                       _openUrl('mailto:${SettingsService.supportEmail}'),
                 ),
@@ -635,7 +637,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           label: const Text(
                             'مفعّل',
                             style: TextStyle(
-                                color: Colors.white, fontSize: 11),
+                                color: Colors.white, fontSize: AppFontSize.caption),
                           ),
                           backgroundColor: Colors.green.shade600,
                           padding: EdgeInsets.zero,
@@ -644,7 +646,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           label: const Text(
                             'غير مفعّل',
                             style: TextStyle(
-                                color: Colors.white, fontSize: 11),
+                                color: Colors.white, fontSize: AppFontSize.caption),
                           ),
                           backgroundColor: Colors.orange.shade700,
                           padding: EdgeInsets.zero,
@@ -705,7 +707,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         builder: (_) => const PrivacyPolicyScreen()),
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: AppSpacing.xxxl),
               ],
             ),
     );
@@ -733,10 +735,11 @@ class _AppInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           children: [
             // ── أيقونة + اسم التطبيق + الإصدار ─────────────────────────
@@ -747,11 +750,12 @@ class _AppInfoCard extends StatelessWidget {
                   height: 48,
                   decoration: BoxDecoration(
                     color: primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: AppRadius.mdAll,
                   ),
-                  child: Icon(Icons.menu_book, color: primary, size: 26),
+                  child: Icon(Icons.menu_book, color: primary,
+                      size: AppIconSize.lg),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: AppSpacing.lg),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -759,72 +763,75 @@ class _AppInfoCard extends StatelessWidget {
                       const Text(
                         'دفتر حسابات',
                         style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 16),
+                            fontWeight: FontWeight.bold,
+                            fontSize: AppFontSize.subtitle),
                       ),
                       Text(
                         'الإصدار $version+$buildNumber',
                         style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600),
+                            fontSize: AppFontSize.small,
+                            color: Colors.grey.shade600),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             const Divider(height: 1),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             // ── عدد العملاء والحد المجاني ─────────────────────────────────
             Row(
               children: [
-                Icon(Icons.people_outline, size: 18, color: primary),
-                const SizedBox(width: 8),
+                Icon(Icons.people_outline, size: AppIconSize.md, color: primary),
+                const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'العملاء: $customerCount',
-                        style: TextStyle(fontSize: 13),
+                        style: const TextStyle(fontSize: AppFontSize.body),
                       ),
                       Text(
                         'الحد المجاني: ${AppConstants.trialCustomerLimit} حساب',
                         style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600),
+                            fontSize: AppFontSize.small, color: Colors.grey.shade600),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             const Divider(height: 1),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             // ── معرّف الجهاز ─────────────────────────────────────────────
             Row(
               children: [
-                Icon(Icons.fingerprint, size: 16, color: primary),
-                const SizedBox(width: 6),
+                Icon(Icons.fingerprint, size: AppIconSize.sm, color: primary),
+                const SizedBox(width: AppSpacing.sm),
                 const Text(
                   'معرّف الجهاز',
                   style: TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 12),
+                      fontWeight: FontWeight.bold, fontSize: AppFontSize.small),
                 ),
                 const Spacer(),
                 InkWell(
                   onTap: onCopy,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: AppRadius.smAll,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
+                        horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.copy, size: 14, color: primary),
-                        const SizedBox(width: 4),
+                        Icon(Icons.copy, size: AppIconSize.sm, color: primary),
+                        const SizedBox(width: AppSpacing.xs),
                         Text(
                           'نسخ',
-                          style: TextStyle(fontSize: 12, color: primary),
+                          style: TextStyle(
+                              fontSize: AppFontSize.small, color: primary),
                         ),
                       ],
                     ),
@@ -832,19 +839,19 @@ class _AppInfoCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpacing.sm),
             Container(
               width: double.infinity,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
               decoration: BoxDecoration(
                 color: Colors.grey.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadius.smAll,
               ),
               child: SelectableText(
                 deviceId,
                 style: const TextStyle(
-                    fontFamily: 'monospace', fontSize: 10),
+                    fontFamily: 'monospace', fontSize: AppFontSize.micro),
               ),
             ),
           ],
@@ -862,13 +869,14 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xs),
       child: Text(
         title,
         style: TextStyle(
           color: Theme.of(context).colorScheme.primary,
           fontWeight: FontWeight.bold,
-          fontSize: 13,
+          fontSize: AppFontSize.body,
         ),
       ),
     );
