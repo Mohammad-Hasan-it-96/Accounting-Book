@@ -17,6 +17,7 @@ import '../../core/theme/app_durations.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_empty_state.dart';
+import '../../core/widgets/app_error_state.dart';
 import '../../core/widgets/app_form_field.dart';
 import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
@@ -40,9 +41,10 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
   List<tx_model.Transaction> _transactions = [];
   double _balance = 0;
   bool _loading = true;
+  bool _loadError = false;
   DateTime? _fromDate;
   DateTime? _toDate;
-  bool _hasChanges  = false;
+  bool _hasChanges = false;
   int _txTypeFilter = 0; // 0=الكل، 1=مطلوب فقط، -1=مدفوع فقط
 
   DateTime? _parseTxDate(String? raw) {
@@ -106,9 +108,12 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     final typeFiltered = _txTypeFilter == 0
         ? filtered
         : filtered
-            .where((item) =>
-                (item['tx'] as tx_model.Transaction).inFlag == _txTypeFilter)
-            .toList();
+              .where(
+                (item) =>
+                    (item['tx'] as tx_model.Transaction).inFlag ==
+                    _txTypeFilter,
+              )
+              .toList();
 
     return typeFiltered.map((e) => e['tx'] as tx_model.Transaction).toList();
   }
@@ -197,14 +202,18 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
 
     final dbHelper = context.read<AppProvider>().dbHelper;
     final repo = TransactionRepository(dbHelper);
-    await repo.insert(tx_model.Transaction(
-      cusId:   widget.customer.id!,
-      inFlag:  isDebt ? -1 : 1,
-      out:     amount,
-      date:    DateTime.now().toIso8601String().substring(0, 10),
-      currId:  widget.currency.id!,
-      remarks: remarksCtrl.text.trim().isEmpty ? 'تسوية رصيد' : remarksCtrl.text.trim(),
-    ));
+    await repo.insert(
+      tx_model.Transaction(
+        cusId: widget.customer.id!,
+        inFlag: isDebt ? -1 : 1,
+        out: amount,
+        date: DateTime.now().toIso8601String().substring(0, 10),
+        currId: widget.currency.id!,
+        remarks: remarksCtrl.text.trim().isEmpty
+            ? 'تسوية رصيد'
+            : remarksCtrl.text.trim(),
+      ),
+    );
     _hasChanges = true;
     await _load();
   }
@@ -253,10 +262,12 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       if (!mounted) return;
       _transactions = txList;
       _balance = balance;
+      _loadError = false;
     } catch (_) {
       if (!mounted) return;
       _transactions = [];
       _balance = 0;
+      _loadError = true;
     }
     if (!mounted) return;
     setState(() => _loading = false);
@@ -317,10 +328,10 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       actionIcon: filtered ? Icons.clear : null,
       onAction: filtered
           ? () => setState(() {
-                _fromDate = null;
-                _toDate = null;
-                _txTypeFilter = 0;
-              })
+              _fromDate = null;
+              _toDate = null;
+              _txTypeFilter = 0;
+            })
           : null,
     );
   }
@@ -332,13 +343,13 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     final balanceColor = _balance == 0
         ? Colors.grey
         : _balance > 0
-            ? AppColors.income
-            : AppColors.expense;
+        ? AppColors.income
+        : AppColors.expense;
     final balanceStatus = _balance == 0
         ? 'مسوّى'
         : _balance > 0
-            ? 'مطلوب'
-            : 'مدفوع';
+        ? 'مطلوب'
+        : 'مدفوع';
 
     return PopScope<bool>(
       canPop: false,
@@ -347,229 +358,260 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
         Navigator.pop(context, _hasChanges);
       },
       child: Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context, _hasChanges),
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context, _hasChanges),
+          ),
+          title: Text(widget.customer.name),
+          actions: [
+            if (_balance != 0)
+              IconButton(
+                icon: const Icon(Icons.done_all),
+                tooltip: 'تسوية الرصيد',
+                onPressed: _settleBalance,
+              ),
+            IconButton(
+              icon: const Icon(Icons.copy),
+              tooltip: 'نسخ',
+              color: Theme.of(context).primaryColor,
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: _buildStatement()));
+                AppSnackBar.success(context, 'تم نسخ كشف الحساب');
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.share),
+              tooltip: 'مشاركة',
+              color: Theme.of(context).primaryColor,
+              onPressed: () => Share.share(_buildStatement()),
+            ),
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              tooltip: 'تصدير PDF',
+              color: Theme.of(context).primaryColor,
+              onPressed: _exportPdf,
+            ),
+          ],
         ),
-        title: Text(widget.customer.name),
-        actions: [
-           if (_balance != 0)
-             IconButton(
-               icon: const Icon(Icons.done_all),
-               tooltip: 'تسوية الرصيد',
-               onPressed: _settleBalance,
-             ),
-           IconButton(
-             icon: const Icon(Icons.copy),
-             tooltip: 'نسخ',
-             color: Theme.of(context).primaryColor,
-             onPressed: () {
-               Clipboard.setData(ClipboardData(text: _buildStatement()));
-               AppSnackBar.success(context, 'تم نسخ كشف الحساب');
-             },
-           ),
-           IconButton(
-             icon: const Icon(Icons.share),
-             tooltip: 'مشاركة',
-             color: Theme.of(context).primaryColor,
-             onPressed: () => Share.share(_buildStatement()),
-           ),
-           IconButton(
-             icon: const Icon(Icons.picture_as_pdf_outlined),
-             tooltip: 'تصدير PDF',
-             color: Theme.of(context).primaryColor,
-             onPressed: _exportPdf,
-           ),
-        ],
-      ),
-      body: _loading
-          ? const AppLoading()
-          : Column(
-              children: [
-                // ─── معلومات العميل ─────────────────────────────────
-                _CustomerHeader(customer: widget.customer),
-                // ─── بطاقة الرصيد (بارزة) ───────────────────────────
-                _BalanceCard(
-                  balance: _balance,
-                  currencyName: widget.currency.displayName,
-                  balanceColor: balanceColor,
-                  status: balanceStatus,
-                  txCount: _transactions.length,
-                ),
-                _SummarySection(
-                  summary: summary,
-                  currencyName: widget.currency.displayName,
-                  balanceColor: balanceColor,
-                ),
-                if (_fromDate != null || _toDate != null)
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        'ملخص مفلتر'
-                        '${_fromDate != null ? ': من ${FormatHelper.formatDateFromDateTime(_fromDate!)}' : ''}'
-                        '${_toDate != null ? ' — ${FormatHelper.formatDateFromDateTime(_toDate!)}' : ''}',
-                        style: TextStyle(
+        body: _loading
+            ? const AppLoading()
+            : _loadError
+            ? AppErrorState(
+                title: 'تعذر تحميل الحركات',
+                message: 'حدث خطأ أثناء جلب البيانات.',
+                onRetry: _load,
+              )
+            : Column(
+                children: [
+                  // ─── معلومات العميل ─────────────────────────────────
+                  _CustomerHeader(customer: widget.customer),
+                  // ─── بطاقة الرصيد (بارزة) ───────────────────────────
+                  _BalanceCard(
+                    balance: _balance,
+                    currencyName: widget.currency.displayName,
+                    balanceColor: balanceColor,
+                    status: balanceStatus,
+                    txCount: _transactions.length,
+                  ),
+                  _SummarySection(
+                    summary: summary,
+                    currencyName: widget.currency.displayName,
+                    balanceColor: balanceColor,
+                  ),
+                  if (_fromDate != null || _toDate != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'ملخص مفلتر'
+                          '${_fromDate != null ? ': من ${FormatHelper.formatDateFromDateTime(_fromDate!)}' : ''}'
+                          '${_toDate != null ? ' — ${FormatHelper.formatDateFromDateTime(_toDate!)}' : ''}',
+                          style: TextStyle(
                             fontSize: AppFontSize.caption,
-                            color: Colors.grey.shade600),
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.xxs),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _pickFromDate,
-                          child: Text(
-                            _fromDate == null
-                                ? 'من تاريخ'
-                                : 'من ${FormatHelper.formatDateFromDateTime(_fromDate!)}',
-                            overflow: TextOverflow.ellipsis,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      AppSpacing.xs,
+                      AppSpacing.md,
+                      AppSpacing.xxs,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _pickFromDate,
+                            child: Text(
+                              _fromDate == null
+                                  ? 'من تاريخ'
+                                  : 'من ${FormatHelper.formatDateFromDateTime(_fromDate!)}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _pickToDate,
-                          child: Text(
-                            _toDate == null
-                                ? 'إلى تاريخ'
-                                : 'إلى ${FormatHelper.formatDateFromDateTime(_toDate!)}',
-                            overflow: TextOverflow.ellipsis,
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _pickToDate,
+                            child: Text(
+                              _toDate == null
+                                  ? 'إلى تاريخ'
+                                  : 'إلى ${FormatHelper.formatDateFromDateTime(_toDate!)}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
-                      ),
-                      if (_fromDate != null || _toDate != null)
-                        IconButton(
-                          tooltip: 'مسح الفلتر',
-                          onPressed: _clearDateFilter,
-                          icon: const Icon(Icons.clear),
+                        if (_fromDate != null || _toDate != null)
+                          IconButton(
+                            tooltip: 'مسح الفلتر',
+                            onPressed: _clearDateFilter,
+                            icon: const Icon(Icons.clear),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // ─── فلتر نوع الحركة ─────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      0,
+                      AppSpacing.md,
+                      AppSpacing.xs,
+                    ),
+                    child: Row(
+                      children: [
+                        _TypeChip(
+                          label: 'الكل',
+                          selected: _txTypeFilter == 0,
+                          onTap: () => setState(() => _txTypeFilter = 0),
                         ),
-                    ],
+                        const SizedBox(width: AppSpacing.sm),
+                        _TypeChip(
+                          label: 'مطلوب',
+                          selected: _txTypeFilter == 1,
+                          color: AppColors.income,
+                          onTap: () => setState(() => _txTypeFilter = 1),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        _TypeChip(
+                          label: 'مدفوع',
+                          selected: _txTypeFilter == -1,
+                          color: AppColors.expense,
+                          onTap: () => setState(() => _txTypeFilter = -1),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                // ─── فلتر نوع الحركة ─────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.md, 0, AppSpacing.md, AppSpacing.xs),
-                  child: Row(
-                    children: [
-                      _TypeChip(
-                        label: 'الكل',
-                        selected: _txTypeFilter == 0,
-                        onTap: () => setState(() => _txTypeFilter = 0),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      _TypeChip(
-                        label: 'مطلوب',
-                        selected: _txTypeFilter == 1,
-                        color: AppColors.income,
-                        onTap: () => setState(() => _txTypeFilter = 1),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      _TypeChip(
-                        label: 'مدفوع',
-                        selected: _txTypeFilter == -1,
-                        color: AppColors.expense,
-                        onTap: () => setState(() => _txTypeFilter = -1),
-                      ),
-                    ],
-                  ),
-                ),
-                // ─── عنوان قسم الحركات ──────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.receipt_long, size: AppIconSize.sm,
-                          color: Colors.grey),
-                      const SizedBox(width: AppSpacing.sm),
-                      Text(
-                        'الحركات (${visibleTransactions.length})',
-                        style: TextStyle(
+                  // ─── عنوان قسم الحركات ──────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.sm,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.receipt_long,
+                          size: AppIconSize.sm,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          'الحركات (${visibleTransactions.length})',
+                          style: TextStyle(
                             fontSize: AppFontSize.body,
                             color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                // ─── قائمة الحركات (الأحدث أولاً) ──────────────────
-                Expanded(
-                  child: visibleTransactions.isEmpty
-                      ? _buildEmptyTransactions()
-                      : RefreshIndicator(
-                          onRefresh: _load,
-                          child: Builder(builder: (context) {
-                            // حساب الرصيد الجاري (من الأقدم إلى الأحدث)
-                            final reversed = visibleTransactions.reversed.toList();
-                            double running = 0;
-                            final runningBalances = reversed.map((tx) {
-                              running += tx.inFlag == 1 ? tx.out : -tx.out;
-                              return running;
-                            }).toList();
-                            final balancesForDisplay = runningBalances.reversed.toList();
-
-                            return ListView.builder(
-                              itemCount: visibleTransactions.length,
-                              itemBuilder: (_, i) => _TransactionTile(
-                                tx: visibleTransactions[i],
-                                currencyName: widget.currency.displayName,
-                                runningBalance: balancesForDisplay[i],
-                                onEdit: () async {
-                                  final changed = await Navigator.push<bool>(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => AddEditTransactionScreen(
-                                        customer: widget.customer,
-                                        currency: widget.currency,
-                                        transaction: visibleTransactions[i],
-                                      ),
-                                    ),
-                                  );
-                                  if (changed == true) {
-                                    _hasChanges = true;
-                                    await _load();
-                                  }
-                                },
-                                onDelete: () =>
-                                    _deleteTransaction(visibleTransactions[i]),
-                              ),
-                            );
-                          }),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  // ─── قائمة الحركات (الأحدث أولاً) ──────────────────
+                  Expanded(
+                    child: visibleTransactions.isEmpty
+                        ? _buildEmptyTransactions()
+                        : RefreshIndicator(
+                            onRefresh: _load,
+                            child: Builder(
+                              builder: (context) {
+                                // حساب الرصيد الجاري (من الأقدم إلى الأحدث)
+                                final reversed = visibleTransactions.reversed
+                                    .toList();
+                                double running = 0;
+                                final runningBalances = reversed.map((tx) {
+                                  running += tx.inFlag == 1 ? tx.out : -tx.out;
+                                  return running;
+                                }).toList();
+                                final balancesForDisplay = runningBalances
+                                    .reversed
+                                    .toList();
+
+                                return ListView.builder(
+                                  itemCount: visibleTransactions.length,
+                                  itemBuilder: (_, i) => _TransactionTile(
+                                    tx: visibleTransactions[i],
+                                    currencyName: widget.currency.displayName,
+                                    runningBalance: balancesForDisplay[i],
+                                    onEdit: () async {
+                                      final changed =
+                                          await Navigator.push<bool>(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  AddEditTransactionScreen(
+                                                    customer: widget.customer,
+                                                    currency: widget.currency,
+                                                    transaction:
+                                                        visibleTransactions[i],
+                                                  ),
+                                            ),
+                                          );
+                                      if (changed == true) {
+                                        _hasChanges = true;
+                                        await _load();
+                                      }
+                                    },
+                                    onDelete: () => _deleteTransaction(
+                                      visibleTransactions[i],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+        floatingActionButton: FloatingActionButton(
+          backgroundColor: Theme.of(context).primaryColor,
+          tooltip: 'إضافة حركة',
+          onPressed: () async {
+            final changed = await Navigator.push<bool>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AddEditTransactionScreen(
+                  customer: widget.customer,
+                  currency: widget.currency,
                 ),
-              ],
-            ),
-       floatingActionButton: FloatingActionButton(
-         backgroundColor: Theme.of(context).primaryColor,
-         tooltip: 'إضافة حركة',
-         onPressed: () async {
-           final changed = await Navigator.push<bool>(
-             context,
-             MaterialPageRoute(
-               builder: (_) => AddEditTransactionScreen(
-                 customer: widget.customer,
-                 currency: widget.currency,
-               ),
-             ),
-           );
-           if (changed == true) {
-             _hasChanges = true;
-             await _load();
-           }
-         },
-         child: const Icon(Icons.add, size: AppIconSize.xl),
-       ),
+              ),
+            );
+            if (changed == true) {
+              _hasChanges = true;
+              await _load();
+            }
+          },
+          child: const Icon(Icons.add, size: AppIconSize.xl),
+        ),
       ),
     );
   }
@@ -591,7 +633,11 @@ class _CustomerHeader extends StatelessWidget {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(
-          AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xs),
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: isDark ? AppColors.cardDark : Colors.white,
@@ -606,9 +652,10 @@ class _CustomerHeader extends StatelessWidget {
             child: Text(
               customer.name.isNotEmpty ? customer.name[0] : '؟',
               style: TextStyle(
-                  color: primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: AppFontSize.title),
+                color: primary,
+                fontWeight: FontWeight.bold,
+                fontSize: AppFontSize.title,
+              ),
             ),
           ),
           const SizedBox(width: AppSpacing.md),
@@ -658,7 +705,9 @@ class _InfoLine extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-                fontSize: AppFontSize.body, color: Colors.grey.shade600),
+              fontSize: AppFontSize.body,
+              color: Colors.grey.shade600,
+            ),
           ),
         ),
       ],
@@ -687,7 +736,11 @@ class _BalanceCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(
-          AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.xs),
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: balanceColor,
@@ -709,12 +762,15 @@ class _BalanceCard extends StatelessWidget {
               Text(
                 'الرصيد الحالي',
                 style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: AppFontSize.small),
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: AppFontSize.small,
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md, vertical: AppSpacing.xxs),
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xxs,
+                ),
                 decoration: ShapeDecoration(
                   color: Colors.white.withValues(alpha: 0.22),
                   shape: const StadiumBorder(),
@@ -722,9 +778,10 @@ class _BalanceCard extends StatelessWidget {
                 child: Text(
                   status,
                   style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: AppFontSize.caption,
-                      fontWeight: FontWeight.bold),
+                    color: Colors.white,
+                    fontSize: AppFontSize.caption,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -740,33 +797,38 @@ class _BalanceCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: AppFontSize.display,
-                      fontWeight: FontWeight.bold),
+                    color: Colors.white,
+                    fontSize: AppFontSize.display,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
               Text(
                 currencyName,
                 style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: AppFontSize.subtitle,
-                    fontWeight: FontWeight.w600),
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: AppFontSize.subtitle,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              Icon(Icons.receipt_long,
-                  size: AppIconSize.sm,
-                  color: Colors.white.withValues(alpha: 0.85)),
+              Icon(
+                Icons.receipt_long,
+                size: AppIconSize.sm,
+                color: Colors.white.withValues(alpha: 0.85),
+              ),
               const SizedBox(width: AppSpacing.xs),
               Text(
                 '$txCount حركة',
                 style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: AppFontSize.small),
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: AppFontSize.small,
+                ),
               ),
             ],
           ),
@@ -801,12 +863,14 @@ class _TransactionTile extends StatelessWidget {
     final runningColor = runningBalance == 0
         ? Colors.grey
         : runningBalance > 0
-            ? AppColors.income
-            : AppColors.expense;
+        ? AppColors.income
+        : AppColors.expense;
 
     return Card(
       margin: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: AppRadius.mdAll,
@@ -814,7 +878,11 @@ class _TransactionTile extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-            AppSpacing.md, AppSpacing.md, AppSpacing.xs, AppSpacing.md),
+          AppSpacing.md,
+          AppSpacing.md,
+          AppSpacing.xs,
+          AppSpacing.md,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -843,8 +911,9 @@ class _TransactionTile extends StatelessWidget {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.sm,
-                            vertical: AppSpacing.xxs),
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xxs,
+                        ),
                         decoration: ShapeDecoration(
                           color: color.withValues(alpha: 0.1),
                           shape: const StadiumBorder(),
@@ -866,8 +935,9 @@ class _TransactionTile extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                                fontSize: AppFontSize.small,
-                                color: Colors.grey.shade500),
+                              fontSize: AppFontSize.small,
+                              color: Colors.grey.shade500,
+                            ),
                           ),
                         ),
                       ],
@@ -879,8 +949,9 @@ class _TransactionTile extends StatelessWidget {
                     Text(
                       tx.remarks!,
                       style: TextStyle(
-                          fontSize: AppFontSize.small,
-                          color: Colors.grey.shade600),
+                        fontSize: AppFontSize.small,
+                        color: Colors.grey.shade600,
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -890,9 +961,10 @@ class _TransactionTile extends StatelessWidget {
                   Text(
                     'الرصيد بعدها: ${FormatHelper.formatAmount(runningBalance)}',
                     style: TextStyle(
-                        fontSize: AppFontSize.caption,
-                        color: runningColor,
-                        fontWeight: FontWeight.w500),
+                      fontSize: AppFontSize.caption,
+                      color: runningColor,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),
@@ -915,14 +987,19 @@ class _TransactionTile extends StatelessWidget {
                 Text(
                   currencyName,
                   style: TextStyle(
-                      fontSize: AppFontSize.micro, color: Colors.grey.shade400),
+                    fontSize: AppFontSize.micro,
+                    color: Colors.grey.shade400,
+                  ),
                 ),
               ],
             ),
             // ─── قائمة الإجراءات ─────────────────────────────────
             PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert,
-                  size: AppIconSize.md, color: Colors.grey.shade400),
+              icon: Icon(
+                Icons.more_vert,
+                size: AppIconSize.md,
+                color: Colors.grey.shade400,
+              ),
               tooltip: 'خيارات',
               onSelected: (v) {
                 if (v == 'edit') onEdit();
@@ -931,20 +1008,27 @@ class _TransactionTile extends StatelessWidget {
               itemBuilder: (_) => const [
                 PopupMenuItem<String>(
                   value: 'edit',
-                  child: Row(children: [
-                    Icon(Icons.edit_outlined, size: AppIconSize.md),
-                    SizedBox(width: AppSpacing.sm),
-                    Text('تعديل'),
-                  ]),
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: AppIconSize.md),
+                      SizedBox(width: AppSpacing.sm),
+                      Text('تعديل'),
+                    ],
+                  ),
                 ),
                 PopupMenuItem<String>(
                   value: 'delete',
-                  child: Row(children: [
-                    Icon(Icons.delete_outline,
-                        size: AppIconSize.md, color: Colors.red),
-                    SizedBox(width: AppSpacing.sm),
-                    Text('حذف', style: TextStyle(color: Colors.red)),
-                  ]),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        size: AppIconSize.md,
+                        color: Colors.red,
+                      ),
+                      SizedBox(width: AppSpacing.sm),
+                      Text('حذف', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -977,11 +1061,14 @@ class _TypeChip extends StatelessWidget {
       child: AnimatedContainer(
         duration: AppDurations.fast,
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.xs,
+        ),
         decoration: ShapeDecoration(
           color: selected ? c.withValues(alpha: 0.15) : Colors.transparent,
           shape: StadiumBorder(
-              side: BorderSide(color: selected ? c : Colors.grey.shade300)),
+            side: BorderSide(color: selected ? c : Colors.grey.shade300),
+          ),
         ),
         child: Text(
           label,
@@ -1024,7 +1111,11 @@ class _SummarySection extends StatelessWidget {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(
-          AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.xs),
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         borderRadius: AppRadius.mdAll,
@@ -1096,7 +1187,9 @@ class _SummaryValue extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-              fontSize: AppFontSize.caption, color: Colors.grey.shade600),
+            fontSize: AppFontSize.caption,
+            color: Colors.grey.shade600,
+          ),
         ),
         const SizedBox(height: AppSpacing.xxs),
         Text(

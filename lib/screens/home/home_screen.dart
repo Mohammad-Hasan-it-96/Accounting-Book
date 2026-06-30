@@ -12,6 +12,7 @@ import '../../core/services/activation_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_empty_state.dart';
+import '../../core/widgets/app_error_state.dart';
 import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/update_dialog.dart';
@@ -215,22 +216,10 @@ class _HomeScreenState extends State<HomeScreen> {
             AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 80),
         children: [
           if (provider.hasError)
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.sm),
-              child: Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded,
-                      size: AppIconSize.sm, color: Colors.orange.shade700),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      'تعذر تحميل العملات. أعد تشغيل التطبيق.',
-                      style: TextStyle(
-                          fontSize: AppFontSize.small,
-                          color: Colors.orange.shade700),
-                    ),
-                  ),
-                ],
+            const Padding(
+              padding: EdgeInsets.only(top: AppSpacing.sm),
+              child: AppErrorState.inline(
+                title: 'تعذر تحميل العملات. أعد تشغيل التطبيق.',
               ),
             ),
           const SizedBox(height: AppSpacing.md),
