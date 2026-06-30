@@ -17,6 +17,7 @@ import '../../core/theme/app_durations.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../add_edit_transaction/add_edit_transaction_screen.dart';
 
 class CustomerDetailsScreen extends StatefulWidget {
@@ -288,6 +289,20 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     );
   }
 
+  Future<void> _exportPdf() async {
+    try {
+      await PdfService.shareStatement(
+        customer: widget.customer,
+        currency: widget.currency,
+        transactions: _transactions,
+        balance: _balance,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'تعذر إنشاء ملف PDF');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final visibleTransactions = _filteredTransactions;
@@ -329,11 +344,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
              color: Theme.of(context).primaryColor,
              onPressed: () {
                Clipboard.setData(ClipboardData(text: _buildStatement()));
-               ScaffoldMessenger.of(context).showSnackBar(
-                   const SnackBar(
-                     content: Text('تم نسخ كشف الحساب'),
-                     behavior: SnackBarBehavior.floating,
-                   ));
+               AppSnackBar.success(context, 'تم نسخ كشف الحساب');
              },
            ),
            IconButton(
@@ -346,24 +357,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
              icon: const Icon(Icons.picture_as_pdf_outlined),
              tooltip: 'تصدير PDF',
              color: Theme.of(context).primaryColor,
-             onPressed: () async {
-               final messenger = ScaffoldMessenger.of(context);
-               try {
-                 await PdfService.shareStatement(
-                   customer: widget.customer,
-                   currency: widget.currency,
-                   transactions: _transactions,
-                   balance: _balance,
-                 );
-               } catch (_) {
-                 messenger.showSnackBar(
-                   const SnackBar(
-                     content: Text('تعذر إنشاء ملف PDF'),
-                     behavior: SnackBarBehavior.floating,
-                   ),
-                 );
-               }
-             },
+             onPressed: _exportPdf,
            ),
         ],
       ),

@@ -8,6 +8,7 @@ import '../../core/theme/app_dimens.dart';
 import '../../core/theme/app_durations.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../home/home_screen.dart';
 class ActivationScreen extends StatefulWidget {
   const ActivationScreen({super.key});
@@ -104,13 +105,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
   void _copyDeviceId() {
     if (_deviceId == null) return;
     Clipboard.setData(ClipboardData(text: _deviceId!));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('تم نسخ معرّف الجهاز'),
-        behavior: SnackBarBehavior.floating,
-        duration: AppDurations.snackbarShort,
-      ),
-    );
+    AppSnackBar.success(context, 'تم نسخ معرّف الجهاز');
   }
 
   @override
@@ -353,8 +348,7 @@ class _ContactRow extends StatelessWidget {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (ctx.mounted) {
-        ScaffoldMessenger.of(ctx)
-            .showSnackBar(const SnackBar(content: Text('تعذر فتح الرابط')));
+        AppSnackBar.error(ctx, 'تعذر فتح الرابط');
       }
     }
   }

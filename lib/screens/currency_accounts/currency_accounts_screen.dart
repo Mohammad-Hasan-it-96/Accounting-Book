@@ -12,6 +12,7 @@ import '../../core/helpers/format_helper.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../activation/activation_screen.dart';
 import '../customer_details/customer_details_screen.dart';
 import '../add_edit_customer/add_edit_customer_screen.dart';
@@ -153,27 +154,20 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
       final repo = CustomerRepository(dbHelper);
       await repo.delete(id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حذف العميل')),
-      );
+      AppSnackBar.success(context, 'تم حذف العميل');
       await _load();
     } on StateError catch (e) {
       if (!mounted) return;
       final hasTx = e.message == 'customer_has_transactions';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            hasTx
-                ? 'لا يمكن حذف العميل لأنه يملك حركات. احذف الحركات أولاً.'
-                : 'تعذر حذف العميل',
-          ),
-        ),
-      );
+      if (hasTx) {
+        AppSnackBar.warning(
+            context, 'لا يمكن حذف العميل لأنه يملك حركات. احذف الحركات أولاً.');
+      } else {
+        AppSnackBar.error(context, 'تعذر حذف العميل');
+      }
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر حذف العميل')),
-      );
+      AppSnackBar.error(context, 'تعذر حذف العميل');
     }
   }
 
@@ -208,12 +202,7 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
   // ─── تصدير تقرير جميع العملاء ───────────────────────────────────────────
   Future<void> _exportAllReport() async {
     if (_items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('لا يوجد عملاء للتصدير'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnackBar.warning(context, 'لا يوجد عملاء للتصدير');
       return;
     }
 

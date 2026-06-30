@@ -9,6 +9,7 @@ import '../../core/helpers/form_validators.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/currency_repository.dart';
 import '../../data/repositories/transaction_repository.dart';
@@ -134,15 +135,11 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
 
     if (customerId == null || currencyId == null) return;
     if (selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('التاريخ مطلوب')),
-      );
+      AppSnackBar.warning(context, 'التاريخ مطلوب');
       return;
     }
     if (!hasValidType) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('نوع الحركة مطلوب')),
-      );
+      AppSnackBar.warning(context, 'نوع الحركة مطلوب');
       return;
     }
 

@@ -5,13 +5,13 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
-import '../../core/theme/app_durations.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/models/customer.dart';
@@ -114,20 +114,20 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     if (!ok) {
       setState(() => _backupInProgress = false);
-      _showSnack('تعذر استيراد النسخة الاحتياطية', isError: true);
+      AppSnackBar.error(context, 'تعذر استيراد النسخة الاحتياطية');
       return;
     }
     final valid = await provider.dbHelper.validateTables();
     if (!mounted) return;
     if (!valid) {
       setState(() => _backupInProgress = false);
-      _showSnack('الملف غير متوافق: الجداول أو الأعمدة الأساسية ناقصة', isError: true);
+      AppSnackBar.error(context, 'الملف غير متوافق: الجداول أو الأعمدة الأساسية ناقصة');
       return;
     }
     await provider.reload();
     if (!mounted) return;
     setState(() => _backupInProgress = false);
-    _showSnack('تم استيراد النسخة الاحتياطية بنجاح');
+    AppSnackBar.success(context, 'تم استيراد النسخة الاحتياطية بنجاح');
     _loadActivationStatus();
   }
 
@@ -140,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     if (path == null) {
       setState(() => _backupInProgress = false);
-      _showSnack('تعذر تصدير النسخة الاحتياطية', isError: true);
+      AppSnackBar.error(context, 'تعذر تصدير النسخة الاحتياطية');
       return;
     }
     await Share.shareXFiles(
@@ -149,31 +149,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (!mounted) return;
     setState(() => _backupInProgress = false);
-    _showSnack('تم تصدير النسخة الاحتياطية بنجاح');
-  }
-
-  void _showSnack(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
-      behavior: SnackBarBehavior.floating,
-      duration: AppDurations.snackbar,
-    ));
+    AppSnackBar.success(context, 'تم تصدير النسخة الاحتياطية بنجاح');
   }
 
   // ─── فتح دفتر عملة ───────────────────────────────────────────────────────
   void _openCurrencyBook(String displayName) {
     final provider = context.read<AppProvider>();
     if (provider.loading) {
-      _showSnack('جارٍ تحميل البيانات...');
+      AppSnackBar.warning(context, 'جارٍ تحميل البيانات...');
       return;
     }
     final currency =
         displayName == 'ليرة' ? provider.liraCurrency : provider.dollarCurrency;
     if (currency == null) {
-      _showSnack(
+      AppSnackBar.error(
+        context,
         'عملة "$displayName" غير موجودة.\nاستورد قاعدة بيانات أو أعد تشغيل التطبيق.',
-        isError: true,
       );
       return;
     }
@@ -356,16 +347,16 @@ class _HomeScreenState extends State<HomeScreen> {
   void _startAddCustomer() {
     final provider = context.read<AppProvider>();
     if (provider.loading) {
-      _showSnack('جارٍ تحميل البيانات...');
+      AppSnackBar.warning(context, 'جارٍ تحميل البيانات...');
       return;
     }
     final lira = provider.liraCurrency;
     final dollar = provider.dollarCurrency;
 
     if (lira == null && dollar == null) {
-      _showSnack(
+      AppSnackBar.error(
+        context,
         'لا توجد عملة متاحة.\nاستورد قاعدة بيانات أو أعد تشغيل التطبيق.',
-        isError: true,
       );
       return;
     }
@@ -671,9 +662,7 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
     final dollar = widget.provider.dollarCurrency;
 
     if (lira == null && dollar == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لا توجد عملة متاحة')),
-      );
+      AppSnackBar.warning(context, 'لا توجد عملة متاحة');
       return;
     }
 

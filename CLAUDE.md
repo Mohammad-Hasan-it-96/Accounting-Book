@@ -96,5 +96,12 @@ All yes/no confirmation and delete dialogs go through one helper — do not hand
 - Delete confirmation messages state that the action cannot be undone.
 - Only dialogs with custom body content (PIN entry, group-name input, balance settlement, the update dialog) remain hand-built `AlertDialog`s; they still follow the same button convention (`TextButton` cancel + `FilledButton` confirm) and inherit the themed title style.
 
+### Notifications / SnackBars (Standardized)
+All transient feedback goes through one helper — do not hand-roll `SnackBar`/`ScaffoldMessenger.of(context).showSnackBar(...)` in screens:
+- `core/widgets/app_snackbar.dart` — `AppSnackBar.success(context, message)`, `AppSnackBar.error(context, message)`, `AppSnackBar.warning(context, message)`. Each shows a floating SnackBar with a consistent semantic color (`AppColors.income`/`expense`/`warning`), a leading white icon (check / error / warning), white text, and `AppDurations.snackbar` duration. The helper calls `hideCurrentSnackBar()` first so messages never stack.
+- Pick by intent: **success** = an action completed (saved/deleted/exported/copied); **error** = an operation failed or hit an unexpected state; **warning** = an advisory the user must heed but that isn't a failure (validation gaps, "data still loading", empty-export, "can't delete: has transactions").
+- After an `await`, guard with `if (!mounted) return;` before calling (the helper takes a `BuildContext`). For callbacks that capture `build`'s `context`, move the async work into a State method so `context` resolves to `this.context` and the `mounted` check relates.
+- `AppColors.warning` (orange) is the semantic token for advisory feedback.
+
 ### Localization
 Arabic-first RTL layout. Uses `flutter_localizations` + `intl`. Comments throughout the codebase are in Arabic. `app.dart` clamps `textScaler` to 1.0–1.3 to prevent layout breakage at large system font sizes.

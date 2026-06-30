@@ -15,6 +15,7 @@ class AppColors {
   static const Color incomeDark = Color(0xFF1B5E20);   // أخضر داكن (أرقام الرصيد)
   static const Color expense = Color(0xFFC62828);      // أحمر
   static const Color expenseDark = Color(0xFFB71C1C);  // أحمر داكن (أرقام الرصيد)
+  static const Color warning = Color(0xFFE65100);      // برتقالي (تنبيه)
 
   // ─── أسطح ────────────────────────────────────────────────────────────────
   static const Color cardDark = Color(0xFF272727);     // خلفية البطاقة في الوضع الداكن

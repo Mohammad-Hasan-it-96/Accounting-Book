@@ -14,13 +14,13 @@ import '../../core/services/settings_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
-import '../../core/theme/app_durations.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../providers/theme_provider.dart';
 import '../activation/activation_screen.dart';
@@ -96,9 +96,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
      if (result.hasUpdate && result.info != null) {
        await UpdateDialog.show(context, result.info!);
      } else if (result.isFailure) {
-       _showSnack(result.error!, isError: true);
+       AppSnackBar.error(context, result.error!);
      } else {
-       _showSnack('✅  أنت تستخدم أحدث إصدار');
+       AppSnackBar.success(context, 'أنت تستخدم أحدث إصدار');
      }
    }
 
@@ -110,7 +110,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
        final path = await provider.dbHelper.exportDatabase(fileName);
        if (!mounted) return;
        if (path == null) {
-         _showSnack('تعذر تصدير النسخة الاحتياطية', isError: true);
+         AppSnackBar.error(context, 'تعذر تصدير النسخة الاحتياطية');
          return;
        }
        await Share.shareXFiles(
@@ -120,11 +120,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
        if (!mounted) return;
        final now = DateTime.now();
        await SettingsService().setLastBackupDate(now);
-       if (mounted) setState(() => _lastBackupDate = now);
-       _showSnack('تم تصدير النسخة الاحتياطية بنجاح');
+       if (!mounted) return;
+       setState(() => _lastBackupDate = now);
+       AppSnackBar.success(context, 'تم تصدير النسخة الاحتياطية بنجاح');
      } catch (e) {
        if (!mounted) return;
-       _showSnack('فشل التصدير: $e', isError: true);
+       AppSnackBar.error(context, 'فشل التصدير: $e');
      }
    }
 
@@ -141,15 +142,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
        final ok = await provider.dbHelper.importDatabase(path);
        if (!mounted) return;
        if (ok) {
-         _showSnack('تم استيراد النسخة الاحتياطية بنجاح');
+         AppSnackBar.success(context, 'تم استيراد النسخة الاحتياطية بنجاح');
          // إعادة تحميل البيانات لتعكس التغييرات
          await _loadInfo();
        } else {
-         _showSnack('فشل الاستيراد', isError: true);
+         AppSnackBar.error(context, 'فشل الاستيراد');
        }
      } catch (e) {
        if (!mounted) return;
-       _showSnack('خطأ في الاستيراد: $e', isError: true);
+       AppSnackBar.error(context, 'خطأ في الاستيراد: $e');
      }
    }
 
@@ -162,11 +163,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _recheckingActivation = false;
       if (result.isSuccess) _isActivated = true;
     });
-    _showSnack(
-      result.message,
-      isError: result.isError,
-      isSuccess: result.isSuccess,
-    );
+    if (result.isError) {
+      AppSnackBar.error(context, result.message);
+    } else if (result.isSuccess) {
+      AppSnackBar.success(context, result.message);
+    } else {
+      AppSnackBar.warning(context, result.message);
+    }
   }
 
   // ─── إعداد قفل PIN ────────────────────────────────────────────────────────
@@ -211,15 +214,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             onPressed: () {
               if (ctrl.text.length < 4) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('أدخل 4 أرقام على الأقل')),
-                );
+                AppSnackBar.warning(ctx, 'أدخل 4 أرقام على الأقل');
                 return;
               }
               if (ctrl.text != confirmCtrl.text) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('الرمزان غير متطابقين')),
-                );
+                AppSnackBar.warning(ctx, 'الرمزان غير متطابقين');
                 return;
               }
               Navigator.pop(ctx, true);
@@ -233,7 +232,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await PinService().setPin(ctrl.text.trim());
     if (mounted) {
       setState(() => _pinEnabled = true);
-      _showSnack('تم تفعيل قفل PIN بنجاح', isSuccess: true);
+      AppSnackBar.success(context, 'تم تفعيل قفل PIN بنجاح');
     }
   }
 
@@ -287,22 +286,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final ok = await PinService().verifyPin(currentCtrl.text.trim());
               if (!ok) {
                 if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('الرمز الحالي غير صحيح')));
+                  AppSnackBar.error(ctx, 'الرمز الحالي غير صحيح');
                 }
                 return;
               }
               if (newCtrl.text.length < 4) {
                 if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('أدخل 4 أرقام على الأقل')));
+                  AppSnackBar.warning(ctx, 'أدخل 4 أرقام على الأقل');
                 }
                 return;
               }
               if (newCtrl.text != confirmCtrl.text) {
                 if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('الرمزان الجديدان غير متطابقين')));
+                  AppSnackBar.warning(ctx, 'الرمزان الجديدان غير متطابقين');
                 }
                 return;
               }
@@ -315,7 +311,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (result != true || !mounted) return;
     await PinService().changePin(newCtrl.text.trim());
-    _showSnack('تم تغيير رمز PIN بنجاح', isSuccess: true);
+    if (mounted) AppSnackBar.success(context, 'تم تغيير رمز PIN بنجاح');
   }
 
   // ─── إعداد مهلة القفل التلقائي ───────────────────────────────────────────
@@ -367,7 +363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _openUrl(String url) async {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) _showSnack('تعذر فتح الرابط', isError: true);
+      if (mounted) AppSnackBar.error(context, 'تعذر فتح الرابط');
     }
   }
 
@@ -375,7 +371,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _copyDeviceId() {
     if (_deviceId == null) return;
     Clipboard.setData(ClipboardData(text: _deviceId!));
-    _showSnack('تم نسخ معرّف الجهاز');
+    AppSnackBar.success(context, 'تم نسخ معرّف الجهاز');
   }
 
   // ─── تأكيد إعادة تعيين التفعيل ────────────────────────────────────────────
@@ -396,19 +392,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       MaterialPageRoute(builder: (_) => const ActivationScreen()),
       (route) => false,
     );
-  }
-
-  void _showSnack(String msg, {bool isError = false, bool isSuccess = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: isError
-          ? Colors.red.shade700
-          : isSuccess
-              ? Colors.green.shade700
-              : null,
-      duration: AppDurations.snackbar,
-    ));
   }
 
   // ─── Build ────────────────────────────────────────────────────────────────

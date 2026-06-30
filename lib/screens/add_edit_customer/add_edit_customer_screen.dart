@@ -6,6 +6,7 @@ import '../../core/services/activation_service.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../data/models/customer.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
@@ -199,21 +200,16 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       if (!mounted) return;
       setState(() => _saving = false);
       final hasTx = e.message == 'customer_has_transactions';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            hasTx
-                ? 'لا يمكن حذف العميل لأنه يملك حركات. احذف الحركات أولاً.'
-                : 'تعذر حذف العميل',
-          ),
-        ),
-      );
+      if (hasTx) {
+        AppSnackBar.warning(
+            context, 'لا يمكن حذف العميل لأنه يملك حركات. احذف الحركات أولاً.');
+      } else {
+        AppSnackBar.error(context, 'تعذر حذف العميل');
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر حذف العميل')),
-      );
+      AppSnackBar.error(context, 'تعذر حذف العميل');
     }
   }
 
