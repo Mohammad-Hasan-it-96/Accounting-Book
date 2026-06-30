@@ -5,7 +5,9 @@ import '../../data/models/customer.dart';
 import '../../data/models/currency.dart';
 import '../../data/models/transaction.dart' as tx_model;
 import '../../core/helpers/format_helper.dart';
+import '../../core/helpers/form_validators.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/app_form_field.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/currency_repository.dart';
 import '../../data/repositories/transaction_repository.dart';
@@ -294,14 +296,14 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
             child: ListView(
               padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
-                DropdownButtonFormField<int>(
-                  initialValue: _customers.any((c) => c.id == _selectedCustomerId)
+                AppDropdownField<int>(
+                  value: _customers.any((c) => c.id == _selectedCustomerId)
                       ? _selectedCustomerId
                       : null,
-                  decoration: const InputDecoration(
-                    labelText: 'العميل *',
-                    prefixIcon: Icon(Icons.person),
-                  ),
+                  label: 'العميل',
+                  icon: Icons.person,
+                  required: true,
+                  requiredMessage: 'العميل مطلوب',
                   items: _customers
                       .where((c) => c.id != null)
                       .map(
@@ -315,18 +317,17 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                     setState(() => _selectedCustomerId = v);
                     _markDirty();
                   },
-                  validator: (v) => v == null ? 'العميل مطلوب' : null,
                 ),
-                const SizedBox(height: AppSpacing.lg),
+                Gap.h12,
 
-                DropdownButtonFormField<int>(
-                  initialValue: _currencies.any((c) => c.id == _selectedCurrencyId)
+                AppDropdownField<int>(
+                  value: _currencies.any((c) => c.id == _selectedCurrencyId)
                       ? _selectedCurrencyId
                       : null,
-                  decoration: const InputDecoration(
-                    labelText: 'العملة *',
-                    prefixIcon: Icon(Icons.currency_exchange),
-                  ),
+                  label: 'العملة',
+                  icon: Icons.currency_exchange,
+                  required: true,
+                  requiredMessage: 'العملة مطلوبة',
                   items: _currencies
                       .where((c) => c.id != null)
                       .map(
@@ -340,62 +341,41 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                     setState(() => _selectedCurrencyId = v);
                     _markDirty();
                   },
-                  validator: (v) => v == null ? 'العملة مطلوبة' : null,
                 ),
-                const SizedBox(height: AppSpacing.md),
+                Gap.h12,
 
                 // المبلغ
-                TextFormField(
+                AppTextField(
                   controller: _amountCtrl,
+                  label: 'المبلغ',
+                  icon: Icons.monetization_on,
+                  required: true,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'المبلغ *',
-                    prefixIcon: Icon(Icons.monetization_on),
-                  ),
+                  validator: FormValidators.amount(requiredMessage: 'المبلغ مطلوب'),
                   onChanged: (_) => _markDirty(),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'المبلغ مطلوب';
-                    final amount = double.tryParse(v.trim());
-                    if (amount == null) return 'أدخل رقماً صحيحاً';
-                    if (amount <= 0) return 'أدخل مبلغاً أكبر من صفر';
-                    return null;
-                  },
                 ),
-                const SizedBox(height: AppSpacing.md),
+                Gap.h12,
 
                 // التاريخ
-                InkWell(
+                AppDateField(
+                  label: 'التاريخ',
+                  required: true,
+                  value: _selectedDate,
+                  format: FormatHelper.formatDateFromDateTime,
                   onTap: () async {
                     await _pickDate();
                     _markDirty();
                   },
-                  borderRadius: AppRadius.smAll,
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'التاريخ *',
-                      prefixIcon: Icon(Icons.calendar_today),
-                    ),
-                    child: Text(
-                      _selectedDate == null
-                          ? 'اختر التاريخ'
-                          : FormatHelper.formatDateFromDateTime(_selectedDate!),
-                      style: TextStyle(
-                        color: _selectedDate == null
-                            ? Colors.grey.shade600
-                            : null,
-                      ),
-                    ),
-                  ),
                 ),
-                const SizedBox(height: AppSpacing.md),
+                Gap.h12,
 
-                DropdownButtonFormField<int>(
-                  initialValue: _normalizeInFlag(_inFlag),
-                  decoration: const InputDecoration(
-                    labelText: 'نوع الحركة *',
-                    prefixIcon: Icon(Icons.compare_arrows),
-                  ),
+                AppDropdownField<int>(
+                  value: _normalizeInFlag(_inFlag),
+                  label: 'نوع الحركة',
+                  icon: Icons.compare_arrows,
+                  required: true,
+                  requiredMessage: 'نوع الحركة مطلوب',
                   items: _transactionTypeOptions
                       .map(
                         (option) => DropdownMenuItem<int>(
@@ -408,18 +388,15 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                     setState(() => _inFlag = _normalizeInFlag(v));
                     _markDirty();
                   },
-                  validator: (v) => v == null ? 'نوع الحركة مطلوب' : null,
                 ),
-                const SizedBox(height: AppSpacing.md),
+                Gap.h12,
 
                 // ملاحظة
-                TextFormField(
+                AppTextField(
                   controller: _remarksCtrl,
+                  label: 'ملاحظة (اختياري)',
+                  icon: Icons.note,
                   maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'ملاحظة (اختياري)',
-                    prefixIcon: Icon(Icons.note),
-                  ),
                   onChanged: (_) => _markDirty(),
                 ),
                 const SizedBox(height: AppSpacing.xxl),

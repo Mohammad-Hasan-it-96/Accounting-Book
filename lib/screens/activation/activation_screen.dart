@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/theme/app_durations.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/widgets/app_form_field.dart';
 import '../home/home_screen.dart';
 class ActivationScreen extends StatefulWidget {
   const ActivationScreen({super.key});
@@ -154,28 +155,24 @@ class _ActivationScreenState extends State<ActivationScreen> {
                        ),
                       const SizedBox(height: AppSpacing.xxl),
                       // ─── حقل الاسم ───────────────────────────────
-                      TextFormField(
+                      AppTextField(
                         controller: _nameCtrl,
+                        label: 'الاسم',
+                        icon: Icons.person_outline,
+                        required: true,
+                        requiredMessage: 'الاسم مطلوب',
                         textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: 'الاسم *',
-                          prefixIcon: Icon(Icons.person_outline),
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'الاسم مطلوب' : null,
                       ),
-                      const SizedBox(height: AppSpacing.lg),
+                      Gap.h12,
                       // ─── حقل الهاتف ──────────────────────────────
-                      TextFormField(
+                      AppTextField(
                         controller: _phoneCtrl,
+                        label: 'رقم الهاتف',
+                        icon: Icons.phone_outlined,
+                        required: true,
+                        requiredMessage: 'رقم الهاتف مطلوب',
                         keyboardType: TextInputType.phone,
                         textInputAction: TextInputAction.done,
-                        decoration: const InputDecoration(
-                          labelText: 'رقم الهاتف *',
-                          prefixIcon: Icon(Icons.phone_outlined),
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'رقم الهاتف مطلوب' : null,
                       ),
                       const SizedBox(height: AppSpacing.xxl),
                       // ─── زر إرسال الطلب ──────────────────────────

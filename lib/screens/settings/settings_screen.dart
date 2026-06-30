@@ -12,6 +12,7 @@ import '../../core/services/backup_scheduler_service.dart';
 import '../../core/services/pin_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/services/update_service.dart';
+import '../../core/widgets/app_form_field.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
@@ -183,19 +184,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            AppTextField(
               controller: ctrl,
+              label: 'رمز PIN (4 أرقام)',
+              icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
               maxLength: 4,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'رمز PIN (4 أرقام)'),
             ),
-            TextField(
+            Gap.h8,
+            AppTextField(
               controller: confirmCtrl,
+              label: 'تأكيد الرمز',
+              icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
               maxLength: 4,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'تأكيد الرمز'),
             ),
           ],
         ),
@@ -245,26 +249,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            AppTextField(
               controller: currentCtrl,
+              label: 'الرمز الحالي',
+              icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
               maxLength: 6,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'الرمز الحالي'),
             ),
-            TextField(
+            Gap.h8,
+            AppTextField(
               controller: newCtrl,
+              label: 'الرمز الجديد (4 أرقام)',
+              icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
               maxLength: 6,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'الرمز الجديد (4 أرقام)'),
             ),
-            TextField(
+            Gap.h8,
+            AppTextField(
               controller: confirmCtrl,
+              label: 'تأكيد الرمز الجديد',
+              icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
               maxLength: 6,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'تأكيد الرمز الجديد'),
             ),
           ],
         ),

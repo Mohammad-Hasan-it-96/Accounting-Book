@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/app_form_field.dart';
 import '../../providers/app_provider.dart';
 
 class GroupsScreen extends StatefulWidget {
@@ -141,13 +142,11 @@ class _GroupsScreenState extends State<GroupsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
-        content: TextField(
+        content: AppTextField(
           controller: ctrl,
+          label: 'اسم المجموعة',
+          icon: Icons.group_work_outlined,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'اسم المجموعة',
-            prefixIcon: Icon(Icons.group_work_outlined),
-          ),
           onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
         ),
         actions: [

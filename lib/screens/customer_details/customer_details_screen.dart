@@ -15,6 +15,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/theme/app_durations.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/widgets/app_form_field.dart';
 import '../add_edit_transaction/add_edit_transaction_screen.dart';
 
 class CustomerDetailsScreen extends StatefulWidget {
@@ -167,13 +168,11 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                   ? 'سيتم تسجيل دفعة بقيمة ${_balance.abs()} ${widget.currency.displayName} لتصفير الرصيد.'
                   : 'سيتم تسجيل مبلغ مطلوب بقيمة ${_balance.abs()} ${widget.currency.displayName} لتصفير الرصيد.',
             ),
-            const SizedBox(height: 12),
-            TextField(
+            Gap.h12,
+            AppTextField(
               controller: remarksCtrl,
-              decoration: const InputDecoration(
-                labelText: 'ملاحظة (اختياري)',
-                prefixIcon: Icon(Icons.notes_outlined),
-              ),
+              label: 'ملاحظة (اختياري)',
+              icon: Icons.notes_outlined,
             ),
           ],
         ),

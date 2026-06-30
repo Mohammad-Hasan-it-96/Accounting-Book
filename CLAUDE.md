@@ -83,5 +83,12 @@ All visual constants are centralized under `core/theme/` — do not hardcode siz
 - `app_theme.dart` — Material 3 component themes (unified 48px-min buttons with md radius, `StadiumBorder` chips/badges, lg-radius dialogs, md-radius cards/inputs); pulls its colors from `AppColors`.
 - Pill-shaped badges/chips use `StadiumBorder` (via `ShapeDecoration` for custom containers), not a large `borderRadius`.
 
+### Form Inputs (Standardized)
+All form fields go through shared widgets/helpers — do not hand-roll `TextFormField`/`DropdownButtonFormField`/date-picker decorations in screens:
+- `core/widgets/app_form_field.dart` — `AppTextField`, `AppDropdownField<T>`, `AppDateField`. Each takes `label` + `icon`; `required: true` appends the ` *` marker and wires the required validator. They work inside a `Form` and inside dialogs. `AppTextField` auto-sets `alignLabelWithHint` for multiline.
+- `core/helpers/form_validators.dart` — `FormValidators` is the single source for validation logic/messages: `required([msg])`, `requiredValue<T>([msg])`, `amount(...)`. Pass a descriptive per-field message; the trim/number logic stays centralized.
+- Standard inter-field spacing is `Gap.h12` (`Gap.h8` for tighter dialogs) — not raw `SizedBox` or `AppSpacing.lg`.
+- Search bars and date-range *filter* controls are not form inputs and intentionally stay outside this system.
+
 ### Localization
 Arabic-first RTL layout. Uses `flutter_localizations` + `intl`. Comments throughout the codebase are in Arabic. `app.dart` clamps `textScaler` to 1.0–1.3 to prevent layout breakage at large system font sizes.

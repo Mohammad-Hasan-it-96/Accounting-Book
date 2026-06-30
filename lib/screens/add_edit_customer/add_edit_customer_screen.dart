@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/app_form_field.dart';
 import '../../data/models/customer.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
@@ -297,37 +298,31 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
               padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
                 // الاسم
-                TextFormField(
+                AppTextField(
                   controller: _nameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'الاسم *',
-                    prefixIcon: Icon(Icons.person),
-                  ),
+                  label: 'الاسم',
+                  icon: Icons.person,
+                  required: true,
+                  requiredMessage: 'الاسم مطلوب',
                   onChanged: (_) => _markDirty(),
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'الاسم مطلوب' : null,
                 ),
-                const SizedBox(height: AppSpacing.md),
+                Gap.h12,
                 // رقم الهاتف
-                TextFormField(
+                AppTextField(
                   controller: _gsmCtrl,
+                  label: 'رقم الهاتف (اختياري)',
+                  icon: Icons.phone,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'رقم الهاتف (اختياري)',
-                    prefixIcon: Icon(Icons.phone),
-                  ),
                   onChanged: (_) => _markDirty(),
                 ),
-                const SizedBox(height: AppSpacing.md),
+                Gap.h12,
                 // المجموعة
-                DropdownButtonFormField<int?>(
-                  initialValue: _groups.any((g) => g.id == _selectedGroupId)
+                AppDropdownField<int?>(
+                  value: _groups.any((g) => g.id == _selectedGroupId)
                       ? _selectedGroupId
                       : null,
-                  decoration: const InputDecoration(
-                    labelText: 'المجموعة (اختياري)',
-                    prefixIcon: Icon(Icons.group_work_outlined),
-                  ),
+                  label: 'المجموعة (اختياري)',
+                  icon: Icons.group_work_outlined,
                   items: [
                     const DropdownMenuItem<int?>(
                       value: null,
@@ -345,28 +340,23 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                     _markDirty();
                   },
                 ),
-                const SizedBox(height: AppSpacing.md),
+                Gap.h12,
                 // الملاحظات
-                TextFormField(
+                AppTextField(
                   controller: _notesCtrl,
+                  label: 'ملاحظات (اختياري)',
+                  icon: Icons.notes_outlined,
                   maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'ملاحظات (اختياري)',
-                    prefixIcon: Icon(Icons.notes_outlined),
-                    alignLabelWithHint: true,
-                  ),
                   onChanged: (_) => _markDirty(),
                 ),
-                const SizedBox(height: AppSpacing.md),
+                Gap.h12,
                 // النوع
-                DropdownButtonFormField<int?>(
-                  initialValue: _types.any((t) => t.id == _selectedTypeId)
+                AppDropdownField<int?>(
+                  value: _types.any((t) => t.id == _selectedTypeId)
                       ? _selectedTypeId
                       : null,
-                  decoration: const InputDecoration(
-                    labelText: 'النوع (اختياري)',
-                    prefixIcon: Icon(Icons.category_outlined),
-                  ),
+                  label: 'النوع (اختياري)',
+                  icon: Icons.category_outlined,
                   items: [
                     const DropdownMenuItem<int?>(
                       value: null,
