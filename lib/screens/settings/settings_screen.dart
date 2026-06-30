@@ -14,6 +14,7 @@ import '../../core/services/settings_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
@@ -403,7 +404,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات')),
       body: _loadingInfo
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoading()
           : ListView(
               children: [
                 // ──────────────────────────────────────────────────────────
@@ -446,11 +447,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    title: const Text('التحقق من التحديثات'),
                    subtitle: const Text('البحث عن إصدارات جديدة'),
                    trailing: _checkingUpdate
-                       ? const SizedBox(
-                           width: 20,
-                           height: 20,
-                           child: CircularProgressIndicator(strokeWidth: 2),
-                         )
+                       ? const AppLoading.inline()
                        : const Icon(Icons.chevron_left),
                    onTap: _checkingUpdate ? null : _checkUpdates,
                  ),
@@ -640,11 +637,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // إعادة فحص التفعيل
                 ListTile(
                   leading: _recheckingActivation
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
+                      ? const AppLoading.inline(size: AppIconSize.lg)
                       : const Icon(Icons.refresh),
                   title: const Text('إعادة فحص التفعيل'),
                   subtitle: const Text('التحقق من حالة التفعيل على السيرفر'),

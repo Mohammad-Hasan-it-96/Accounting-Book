@@ -12,6 +12,7 @@ import '../../core/helpers/format_helper.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../activation/activation_screen.dart';
 import '../customer_details/customer_details_screen.dart';
@@ -451,7 +452,7 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
           // ─── القائمة ─────────────────────────────────────────────
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const AppLoading()
                 : displayed.isEmpty
                     ? Center(
                         child: Column(

@@ -7,6 +7,7 @@ import '../../core/theme/app_dimens.dart';
 import '../../core/theme/app_durations.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/pin_service.dart';
+import '../../core/widgets/app_loading.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
 import '../../providers/theme_provider.dart';
@@ -165,13 +166,9 @@ class _SplashScreenState extends State<SplashScreen>
             // ─── مؤشر تحميل خفيف ─────────────────────────────────────
             FadeTransition(
               opacity: _fade,
-              child: const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white54,
-                  strokeWidth: 2,
-                ),
+              child: const AppLoading.inline(
+                size: AppIconSize.lg,
+                color: Colors.white54,
               ),
             ),
           ],

@@ -9,6 +9,7 @@ import '../../core/helpers/form_validators.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/currency_repository.dart';
@@ -202,7 +203,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
     if (_loadingLookups) {
       return Scaffold(
         appBar: AppBar(title: Text(isEdit ? 'تعديل حركة' : 'إضافة حركة')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const AppLoading(),
       );
     }
 
@@ -383,11 +384,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                   child: ElevatedButton(
                     onPressed: _saving ? null : _save,
                     child: _saving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const AppLoading.inline()
                         : Text(isEdit ? 'حفظ التعديلات' : 'إضافة الحركة'),
                   ),
                 ),

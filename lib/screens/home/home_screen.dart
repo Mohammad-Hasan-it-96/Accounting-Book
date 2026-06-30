@@ -11,6 +11,7 @@ import '../../core/helpers/format_helper.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
@@ -515,11 +516,10 @@ class _BookButton extends StatelessWidget {
           child: Column(
             children: [
               loading
-                  ? const SizedBox(
-                      width: AppIconSize.xl,
-                      height: AppIconSize.xl,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2.5),
+                  ? const AppLoading.inline(
+                      size: AppIconSize.xl,
+                      strokeWidth: 2.5,
+                      color: Colors.white,
                     )
                   : Icon(icon, color: Colors.white, size: AppIconSize.xl),
               const SizedBox(height: AppSpacing.md),
@@ -758,7 +758,7 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppLoading();
     }
     if (_results.isEmpty) {
       return Center(

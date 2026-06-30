@@ -103,5 +103,11 @@ All transient feedback goes through one helper — do not hand-roll `SnackBar`/`
 - After an `await`, guard with `if (!mounted) return;` before calling (the helper takes a `BuildContext`). For callbacks that capture `build`'s `context`, move the async work into a State method so `context` resolves to `this.context` and the `mounted` check relates.
 - `AppColors.warning` (orange) is the semantic token for advisory feedback.
 
+### Loading Indicators (Standardized)
+All spinners go through one widget — do not hand-roll `CircularProgressIndicator`/`Center(child: CircularProgressIndicator())`/`SizedBox`-wrapped spinners in screens:
+- `core/widgets/app_loading.dart` — `const AppLoading()` renders a centered, full-area spinner (for a screen body waiting on data, using the default Material stroke). `const AppLoading.inline({size, strokeWidth, color})` renders a fixed-size spinner to drop into a button or list tile in place of its icon while an action runs; `size` defaults to `AppIconSize.md` (20) and `strokeWidth` to 2. Pass `AppIconSize.lg`/`AppIconSize.xl` and a `color` (e.g. `Colors.white` on colored surfaces) when a specific call site needs it.
+- No animations beyond the indeterminate spinner itself — keep loading UI lightweight.
+- The single `LinearProgressIndicator` (top-of-card progress bar on the home screen) is a deliberate one-off and intentionally stays outside this widget.
+
 ### Localization
 Arabic-first RTL layout. Uses `flutter_localizations` + `intl`. Comments throughout the codebase are in Arabic. `app.dart` clamps `textScaler` to 1.0–1.3 to prevent layout breakage at large system font sizes.

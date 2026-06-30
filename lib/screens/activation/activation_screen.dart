@@ -8,6 +8,7 @@ import '../../core/theme/app_dimens.dart';
 import '../../core/theme/app_durations.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../home/home_screen.dart';
 class ActivationScreen extends StatefulWidget {
@@ -114,7 +115,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
     return Scaffold(
       body: SafeArea(
         child: _loadingDeviceId
-            ? const Center(child: CircularProgressIndicator())
+            ? const AppLoading()
             : SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.xxl, vertical: AppSpacing.xl),
@@ -176,12 +177,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
                             ? null
                             : _sendRequest,
                         icon: _sendingRequest
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white),
-                              )
+                            ? const AppLoading.inline(color: Colors.white)
                             : const Icon(Icons.send_outlined),
                         label: Text(
                             _sendingRequest ? 'جارٍ الإرسال...' : 'إرسال طلب التفعيل'),
@@ -197,12 +193,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
                             ? null
                             : _checkStatus,
                         icon: _checkingStatus
-                            ? SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: primary),
-                              )
+                            ? AppLoading.inline(color: primary)
                             : const Icon(Icons.verified_outlined),
                         label: Text(_checkingStatus
                             ? 'جارٍ التحقق...'

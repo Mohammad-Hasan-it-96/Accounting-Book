@@ -6,6 +6,7 @@ import '../../core/services/activation_service.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../data/models/customer.dart';
 import '../../data/repositories/customer_repository.dart';
@@ -351,11 +352,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                   child: ElevatedButton(
                     onPressed: _saving ? null : _save,
                     child: _saving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const AppLoading.inline()
                         : Text(isEdit ? 'حفظ التعديلات' : 'إضافة العميل'),
                   ),
                 ),

@@ -4,6 +4,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_loading.dart';
 import '../../providers/app_provider.dart';
 
 class GroupsScreen extends StatefulWidget {
@@ -149,7 +150,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
         title: const Text('إدارة المجموعات'),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoading()
           : _groups.isEmpty
               ? Center(
                   child: Column(

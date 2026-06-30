@@ -17,6 +17,7 @@ import '../../core/theme/app_durations.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../add_edit_transaction/add_edit_transaction_screen.dart';
 
@@ -362,7 +363,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoading()
           : Column(
               children: [
                 // ─── معلومات العميل ─────────────────────────────────
