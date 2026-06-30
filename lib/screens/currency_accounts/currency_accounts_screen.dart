@@ -509,7 +509,6 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
                             final item = displayed[i];
                             return _CustomerTile(
                               item: item,
-                              currencyName: widget.currency.displayName,
                               onTap: () async {
                                 final changed = await Navigator.push<bool>(
                                   context,
@@ -632,7 +631,6 @@ class _StatItem extends StatelessWidget {
 // ─── بلاط العميل ─────────────────────────────────────────────────────────────
 class _CustomerTile extends StatelessWidget {
   final _CustomerWithBalance item;
-  final String currencyName;
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -640,23 +638,11 @@ class _CustomerTile extends StatelessWidget {
 
   const _CustomerTile({
     required this.item,
-    required this.currencyName,
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
     required this.onShare,
   });
-
-  // ─── تنسيق تاريخ آخر حركة ────────────────────────────────────────────────
-  String _formatLastTx(DateTime date) {
-    final now  = DateTime.now();
-    final diff = DateTime(now.year, now.month, now.day)
-        .difference(DateTime(date.year, date.month, date.day))
-        .inDays;
-    if (diff == 0) return 'اليوم';
-    if (diff == 1) return 'أمس';
-    return '${date.day}/${date.month}/${date.year}';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -675,11 +661,17 @@ class _CustomerTile extends StatelessWidget {
             ? AppColors.incomeDark
             : AppColors.expenseDark;
 
-    // ─── سطر الملخص الثانوي ─────────────────────────────────────────────────
-    final parts = <String>[];
-    if (item.txCount > 0) parts.add('${item.txCount} حركة');
-    if (item.lastTxDate != null) parts.add('آخرها ${_formatLastTx(item.lastTxDate!)}');
-    final txSubtitle = parts.isEmpty ? 'لا توجد حركات بعد' : parts.join(' · ');
+    final statusLabel = isZero
+        ? 'مسوّى'
+        : balance > 0
+            ? 'مطلوب'
+            : 'مدفوع';
+
+    // ─── معلومات ثانوية: الهاتف + عدد الحركات (+ ملاحظة عند وجودها) ─────────
+    final phone = item.customer.gsm?.trim() ?? '';
+    final hasPhone = phone.isNotEmpty;
+    final txCountLabel =
+        item.txCount > 0 ? '${item.txCount} حركة' : 'لا حركات';
     final notes = item.customer.notes?.trim() ?? '';
     final hasNotes = notes.isNotEmpty;
 
@@ -694,78 +686,87 @@ class _CustomerTile extends StatelessWidget {
       child: ListTile(
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.xxs),
-        // ─── الأفاتار ──────────────────────────────────────────────
+            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        // ─── الأفاتار (مع مؤشّر الأرشفة) ──────────────────────────
         leading: Stack(
           clipBehavior: Clip.none,
           children: [
             CircleAvatar(
-              radius: 20,
+              radius: 22,
               backgroundColor: avatarBg.withValues(alpha: 0.14),
               child: Text(
                 item.customer.name.isNotEmpty ? item.customer.name[0] : '؟',
                 style: TextStyle(
                   color: avatarBg,
                   fontWeight: FontWeight.bold,
-                  fontSize: AppFontSize.subtitle,
+                  fontSize: AppFontSize.title,
                 ),
               ),
             ),
             if (item.customer.isArchived)
               Positioned(
-                right: -4,
+                right: -2,
                 bottom: -2,
                 child: Container(
                   padding: const EdgeInsets.all(AppSpacing.xxs),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade600,
                     shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
                   ),
                   child: const Icon(Icons.archive, size: 10, color: Colors.white),
                 ),
               ),
           ],
         ),
-        // ─── الاسم ─────────────────────────────────────────────────
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                item.customer.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: AppFontSize.subtitle),
-              ),
-            ),
-            if (item.customer.isArchived)
-              Container(
-                margin: const EdgeInsets.only(right: AppSpacing.xs),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
-                decoration: ShapeDecoration(
-                  color: Colors.grey.shade200,
-                  shape: const StadiumBorder(),
-                ),
-                child: Text(
-                  'محفوظ',
-                  style: TextStyle(
-                      fontSize: AppFontSize.micro, color: Colors.grey.shade600),
-                ),
-              ),
-          ],
+        // ─── الاسم: تأكيد أقوى ─────────────────────────────────────
+        title: Text(
+          item.customer.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: AppFontSize.subtitle,
+          ),
         ),
-        // ─── الملخص (حركات + آخر تاريخ + ملاحظات) ─────────────────
+        // ─── ثانوي: الهاتف + عدد الحركات ──────────────────────────
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              txSubtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: AppFontSize.small, color: Colors.grey.shade500),
+            const SizedBox(height: AppSpacing.xxs),
+            Row(
+              children: [
+                if (hasPhone) ...[
+                  Icon(Icons.phone_outlined,
+                      size: AppIconSize.sm, color: Colors.grey.shade400),
+                  const SizedBox(width: AppSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      phone,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: AppFontSize.small,
+                          color: Colors.grey.shade600),
+                    ),
+                  ),
+                  Text(
+                    '  ·  ',
+                    style: TextStyle(
+                        fontSize: AppFontSize.small,
+                        color: Colors.grey.shade400),
+                  ),
+                ],
+                Text(
+                  txCountLabel,
+                  style: TextStyle(
+                      fontSize: AppFontSize.small, color: Colors.grey.shade500),
+                ),
+              ],
             ),
-            if (hasNotes)
+            if (hasNotes) ...[
+              const SizedBox(height: AppSpacing.xxs),
               Text(
                 notes,
                 maxLines: 1,
@@ -775,9 +776,10 @@ class _CustomerTile extends StatelessWidget {
                     color: Colors.grey.shade400,
                     fontStyle: FontStyle.italic),
               ),
+            ],
           ],
         ),
-        // ─── الرصيد + قائمة الخيارات ────────────────────────────────
+        // ─── الرصيد المميَّز + قائمة الخيارات ──────────────────────
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -785,17 +787,30 @@ class _CustomerTile extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  FormatHelper.formatAmount(balance),
-                  style: TextStyle(
-                    color: balanceColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: AppFontSize.subtitle,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+                  decoration: ShapeDecoration(
+                    color: balanceColor.withValues(alpha: 0.12),
+                    shape: const StadiumBorder(),
+                  ),
+                  child: Text(
+                    FormatHelper.formatAmount(balance),
+                    style: TextStyle(
+                      color: balanceColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: AppFontSize.subtitle,
+                    ),
                   ),
                 ),
+                const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  currencyName,
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: AppFontSize.micro),
+                  statusLabel,
+                  style: TextStyle(
+                    color: balanceColor,
+                    fontSize: AppFontSize.micro,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
