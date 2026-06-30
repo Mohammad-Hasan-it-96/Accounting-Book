@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_empty_state.dart';
 import '../../core/widgets/app_form_field.dart';
 import '../../core/widgets/app_loading.dart';
 import '../../providers/app_provider.dart';
@@ -152,27 +153,10 @@ class _GroupsScreenState extends State<GroupsScreen> {
       body: _loading
           ? const AppLoading()
           : _groups.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.group_work_outlined,
-                          size: AppIconSize.empty, color: Colors.grey.shade300),
-                      const SizedBox(height: AppSpacing.md),
-                      Text(
-                        'لا توجد مجموعات',
-                        style: TextStyle(
-                            fontSize: AppFontSize.subtitle,
-                            color: Colors.grey.shade500),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        'اضغط + لإضافة مجموعة جديدة',
-                        style: TextStyle(
-                            fontSize: AppFontSize.body, color: Colors.grey.shade400),
-                      ),
-                    ],
-                  ),
+              ? const AppEmptyState(
+                  icon: Icons.group_work_outlined,
+                  title: 'لا توجد مجموعات',
+                  description: 'اضغط + لإضافة مجموعة جديدة',
                 )
               : ListView.separated(
                   itemCount: _groups.length,

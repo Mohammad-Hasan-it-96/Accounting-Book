@@ -16,6 +16,7 @@ import '../../core/theme/app_dimens.dart';
 import '../../core/theme/app_durations.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_empty_state.dart';
 import '../../core/widgets/app_form_field.dart';
 import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
@@ -304,6 +305,26 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     }
   }
 
+  Widget _buildEmptyTransactions() {
+    final filtered = _fromDate != null || _toDate != null || _txTypeFilter != 0;
+    return AppEmptyState(
+      icon: filtered ? Icons.filter_alt_off_outlined : Icons.receipt_long,
+      title: filtered ? 'لا توجد حركات مطابقة للفلتر' : 'لا توجد حركات بعد',
+      description: filtered
+          ? 'جرّب تعديل التواريخ أو نوع الحركة'
+          : 'اضغط زر ( + ) لإضافة أول حركة',
+      actionLabel: filtered ? 'مسح الفلتر' : null,
+      actionIcon: filtered ? Icons.clear : null,
+      onAction: filtered
+          ? () => setState(() {
+                _fromDate = null;
+                _toDate = null;
+                _txTypeFilter = 0;
+              })
+          : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final visibleTransactions = _filteredTransactions;
@@ -485,16 +506,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                 // ─── قائمة الحركات (الأحدث أولاً) ──────────────────
                 Expanded(
                   child: visibleTransactions.isEmpty
-                      ? _EmptyTransactions(
-                          filtered: _fromDate != null ||
-                              _toDate != null ||
-                              _txTypeFilter != 0,
-                          onClearFilter: () => setState(() {
-                            _fromDate = null;
-                            _toDate = null;
-                            _txTypeFilter = 0;
-                          }),
-                        )
+                      ? _buildEmptyTransactions()
                       : RefreshIndicator(
                           onRefresh: _load,
                           child: Builder(builder: (context) {
@@ -1098,65 +1110,6 @@ class _SummaryValue extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ─── حالة فارغة للحركات ──────────────────────────────────────────────────────
-class _EmptyTransactions extends StatelessWidget {
-  final bool filtered;
-  final VoidCallback onClearFilter;
-
-  const _EmptyTransactions({
-    required this.filtered,
-    required this.onClearFilter,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              filtered ? Icons.filter_alt_off_outlined : Icons.receipt_long,
-              size: AppIconSize.empty,
-              color: Colors.grey.shade300,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              filtered ? 'لا توجد حركات مطابقة للفلتر' : 'لا توجد حركات بعد',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: AppFontSize.subtitle,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade600,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              filtered
-                  ? 'جرّب تعديل التواريخ أو نوع الحركة'
-                  : 'اضغط زر ( + ) لإضافة أول حركة',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: AppFontSize.small,
-                color: Colors.grey.shade500,
-              ),
-            ),
-            if (filtered) ...[
-              const SizedBox(height: AppSpacing.md),
-              TextButton.icon(
-                onPressed: onClearFilter,
-                icon: const Icon(Icons.clear, size: AppIconSize.sm),
-                label: const Text('مسح الفلتر'),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }

@@ -12,6 +12,7 @@ import '../../core/helpers/format_helper.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_empty_state.dart';
 import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../activation/activation_screen.dart';
@@ -454,23 +455,13 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
             child: _loading
                 ? const AppLoading()
                 : displayed.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.people_outline,
-                                size: AppIconSize.empty,
-                                color: Colors.grey.shade300),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text(
-                              _searchCtrl.text.isNotEmpty
-                                  ? 'لا نتائج لـ "${_searchCtrl.text}"'
-                                  : 'لا يوجد عملاء',
-                              style:
-                                  TextStyle(color: Colors.grey.shade500),
-                            ),
-                          ],
-                        ),
+                    ? AppEmptyState(
+                        icon: _searchCtrl.text.isNotEmpty
+                            ? Icons.search_off
+                            : Icons.people_outline,
+                        title: _searchCtrl.text.isNotEmpty
+                            ? 'لا نتائج لـ "${_searchCtrl.text}"'
+                            : 'لا يوجد عملاء',
                       )
                     : RefreshIndicator(
                         onRefresh: _load,

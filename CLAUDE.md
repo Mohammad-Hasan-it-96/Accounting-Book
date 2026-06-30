@@ -109,5 +109,10 @@ All spinners go through one widget — do not hand-roll `CircularProgressIndicat
 - No animations beyond the indeterminate spinner itself — keep loading UI lightweight.
 - The single `LinearProgressIndicator` (top-of-card progress bar on the home screen) is a deliberate one-off and intentionally stays outside this widget.
 
+### Empty States (Standardized)
+All "no data" / "no results" placeholders go through one widget — do not hand-roll a `Center(child: Column(...))` with a grey icon + texts in screens:
+- `core/widgets/app_empty_state.dart` — `AppEmptyState(icon:, title:, description:, actionLabel:, actionIcon:, onAction:, iconSize:)`. It renders a centered column: a light-grey icon (`AppIconSize.empty` 64 by default; pass `AppIconSize.xxl` 48 for a compact panel), a `subtitle`-sized bold grey title, an optional short grey `description`, and an optional action button (shown only when both `actionLabel` and `onAction` are given — `ElevatedButton.icon` when `actionIcon` is set, else `ElevatedButton`).
+- Use it for list/search empties (customers, groups, transactions, search results). For a screen with a single conditional empty (e.g. filtered vs. truly empty), branch the `icon`/`title`/`description`/action inline at the call site or in a small `_buildEmpty...()` State method rather than re-creating the layout.
+
 ### Localization
 Arabic-first RTL layout. Uses `flutter_localizations` + `intl`. Comments throughout the codebase are in Arabic. `app.dart` clamps `textScaler` to 1.0–1.3 to prevent layout breakage at large system font sizes.

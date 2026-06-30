@@ -8,6 +8,7 @@ import '../../core/helpers/format_helper.dart';
 import '../../core/helpers/form_validators.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_empty_state.dart';
 import '../../core/widgets/app_form_field.dart';
 import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
@@ -210,32 +211,13 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
     if (_customers.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: Text(isEdit ? 'تعديل حركة' : 'إضافة حركة')),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.people_outline,
-                  size: AppIconSize.empty, color: Colors.grey.shade300),
-              const SizedBox(height: AppSpacing.lg),
-              Text(
-                'لا يوجد عملاء',
-                style: TextStyle(
-                    fontSize: AppFontSize.subtitle, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'أضف عميلاً أولاً ثم أضف الحركة',
-                style: TextStyle(
-                    fontSize: AppFontSize.body, color: Colors.grey.shade400),
-              ),
-              const SizedBox(height: AppSpacing.xxl),
-              ElevatedButton.icon(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back),
-                label: const Text('العودة'),
-              ),
-            ],
-          ),
+        body: AppEmptyState(
+          icon: Icons.people_outline,
+          title: 'لا يوجد عملاء',
+          description: 'أضف عميلاً أولاً ثم أضف الحركة',
+          actionLabel: 'العودة',
+          actionIcon: Icons.arrow_back,
+          onAction: () => Navigator.pop(context),
         ),
       );
     }

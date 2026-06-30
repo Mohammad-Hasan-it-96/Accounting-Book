@@ -11,6 +11,7 @@ import '../../core/helpers/format_helper.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/update_service.dart';
 import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_empty_state.dart';
 import '../../core/widgets/app_loading.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/update_dialog.dart';
@@ -761,19 +762,10 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
       return const AppLoading();
     }
     if (_results.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off,
-                size: AppIconSize.xxl, color: Colors.grey.shade300),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'لا نتائج لـ "${widget.query}"',
-              style: TextStyle(color: Colors.grey.shade500),
-            ),
-          ],
-        ),
+      return AppEmptyState(
+        icon: Icons.search_off,
+        iconSize: AppIconSize.xxl,
+        title: 'لا نتائج لـ "${widget.query}"',
       );
     }
     final displayResults =
