@@ -156,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openCurrencyBook(String displayName) {
     final provider = context.read<AppProvider>();
     if (provider.loading) {
-      AppSnackBar.warning(context, 'جارٍ تحميل البيانات...');
+      AppSnackBar.info(context, 'جارٍ تحميل البيانات...');
       return;
     }
     final currency =
@@ -347,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _startAddCustomer() {
     final provider = context.read<AppProvider>();
     if (provider.loading) {
-      AppSnackBar.warning(context, 'جارٍ تحميل البيانات...');
+      AppSnackBar.info(context, 'جارٍ تحميل البيانات...');
       return;
     }
     final lira = provider.liraCurrency;

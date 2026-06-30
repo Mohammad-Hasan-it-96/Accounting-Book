@@ -168,7 +168,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } else if (result.isSuccess) {
       AppSnackBar.success(context, result.message);
     } else {
-      AppSnackBar.warning(context, result.message);
+      AppSnackBar.info(context, result.message);
     }
   }
 
