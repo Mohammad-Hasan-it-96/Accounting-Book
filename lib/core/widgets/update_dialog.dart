@@ -54,14 +54,10 @@ class UpdateDialog extends StatelessWidget {
               child: const Text('لاحقاً'),
             ),
           const SizedBox(width: AppSpacing.sm),
-          ElevatedButton.icon(
+          FilledButton.icon(
             onPressed: () => _openApk(context),
             icon: const Icon(Icons.system_update_outlined, size: AppIconSize.md),
             label: const Text('تحديث الآن'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primary,
-              foregroundColor: Colors.white,
-            ),
           ),
         ],
       ),

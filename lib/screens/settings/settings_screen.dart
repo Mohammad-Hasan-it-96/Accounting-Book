@@ -12,6 +12,7 @@ import '../../core/services/backup_scheduler_service.dart';
 import '../../core/services/pin_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/services/update_service.dart';
+import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
@@ -207,7 +208,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('إلغاء')),
-          ElevatedButton(
+          FilledButton(
             onPressed: () {
               if (ctrl.text.length < 4) {
                 ScaffoldMessenger.of(ctx).showSnackBar(
@@ -281,7 +282,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('إلغاء')),
-          ElevatedButton(
+          FilledButton(
             onPressed: () async {
               final ok = await PinService().verifyPin(currentCtrl.text.trim());
               if (!ok) {
@@ -379,27 +380,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // ─── تأكيد إعادة تعيين التفعيل ────────────────────────────────────────────
   Future<void> _confirmResetActivation() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('إعادة تعيين التفعيل'),
-        content: const Text(
+    final confirm = await AppDialog.confirm(
+      context,
+      title: 'إعادة تعيين التفعيل',
+      message:
           'سيتم إلغاء التفعيل وستحتاج إلى تفعيل التطبيق مجدداً.\nهل تريد المتابعة؟',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('إعادة التعيين'),
-          ),
-        ],
-      ),
+      confirmLabel: 'إعادة التعيين',
+      destructive: true,
     );
-    if (confirm != true || !mounted) return;
+    if (!confirm || !mounted) return;
     await ActivationService().resetActivation();
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(

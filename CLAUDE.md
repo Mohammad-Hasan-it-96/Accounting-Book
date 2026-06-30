@@ -90,5 +90,11 @@ All form fields go through shared widgets/helpers — do not hand-roll `TextForm
 - Standard inter-field spacing is `Gap.h12` (`Gap.h8` for tighter dialogs) — not raw `SizedBox` or `AppSpacing.lg`.
 - Search bars and date-range *filter* controls are not form inputs and intentionally stay outside this system.
 
+### Confirmation Dialogs (Standardized)
+All yes/no confirmation and delete dialogs go through one helper — do not hand-roll `AlertDialog` for confirmations:
+- `core/widgets/app_dialog.dart` — `AppDialog.confirm(context, title:, message:, confirmLabel:, cancelLabel:, destructive:, icon:)` returns a `Future<bool>` (`true` = confirmed). Cancel is always a `TextButton`; confirm is always a `FilledButton`. `destructive: true` makes the confirm button red (`AppColors.expense`) and adds a `warning_amber_rounded` icon in the title — use it for deletes and any non-reversible action (including discard-changes prompts). Pass an `icon:` to add a leading title icon on non-destructive dialogs.
+- Delete confirmation messages state that the action cannot be undone.
+- Only dialogs with custom body content (PIN entry, group-name input, balance settlement, the update dialog) remain hand-built `AlertDialog`s; they still follow the same button convention (`TextButton` cancel + `FilledButton` confirm) and inherit the themed title style.
+
 ### Localization
 Arabic-first RTL layout. Uses `flutter_localizations` + `intl`. Comments throughout the codebase are in Arabic. `app.dart` clamps `textScaler` to 1.0–1.3 to prevent layout breakage at large system font sizes.

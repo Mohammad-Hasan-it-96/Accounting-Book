@@ -7,6 +7,7 @@ import '../../data/models/transaction.dart' as tx_model;
 import '../../core/helpers/format_helper.dart';
 import '../../core/helpers/form_validators.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/currency_repository.dart';
@@ -179,26 +180,15 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
     final txId = widget.transaction?.id;
     if (txId == null) return;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('تأكيد الحذف'),
-        content: const Text('هل تريد حذف هذه الحركة؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('حذف'),
-          ),
-        ],
-      ),
+    final confirm = await AppDialog.confirm(
+      context,
+      title: 'حذف الحركة',
+      message: 'هل تريد حذف هذه الحركة؟ لا يمكن التراجع عن هذا الإجراء.',
+      confirmLabel: 'حذف',
+      destructive: true,
     );
 
-    if (confirm != true) return;
+    if (!confirm) return;
     if (!mounted) return;
 
     HapticFeedback.heavyImpact();
@@ -257,25 +247,15 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         final nav = Navigator.of(context);
-        final leave = await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('تجاهل التغييرات؟'),
-            content: const Text('لديك تغييرات غير محفوظة. هل تريد المغادرة؟'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('تابع التعديل'),
-              ),
-              TextButton(
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('تجاهل'),
-              ),
-            ],
-          ),
+        final leave = await AppDialog.confirm(
+          context,
+          title: 'تجاهل التغييرات؟',
+          message: 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟',
+          confirmLabel: 'تجاهل',
+          cancelLabel: 'تابع التعديل',
+          destructive: true,
         );
-        if (leave == true && mounted) nav.pop();
+        if (leave && mounted) nav.pop();
       },
       child: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),

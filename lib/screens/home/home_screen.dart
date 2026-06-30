@@ -11,6 +11,7 @@ import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/update_service.dart';
+import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/models/customer.dart';
@@ -92,25 +93,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final path = result.files.single.path!;
     if (!mounted) return;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('تأكيد الاستيراد'),
-        content: const Text(
-          'سيتم استبدال قاعدة البيانات الحالية بالملف المختار.\n'
+    final confirm = await AppDialog.confirm(
+      context,
+      title: 'تأكيد الاستيراد',
+      message: 'سيتم استبدال قاعدة البيانات الحالية بالملف المختار.\n'
           'سيتم أخذ نسخة احتياطية تلقائية قبل الاستيراد.',
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('إلغاء')),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('استيراد')),
-        ],
-      ),
+      confirmLabel: 'استيراد',
+      icon: Icons.file_download_outlined,
     );
-    if (confirm != true) {
+    if (!confirm) {
       if (mounted) setState(() => _backupInProgress = false);
       return;
     }

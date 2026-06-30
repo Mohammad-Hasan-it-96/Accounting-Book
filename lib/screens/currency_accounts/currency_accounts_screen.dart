@@ -11,6 +11,7 @@ import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/app_dialog.dart';
 import '../activation/activation_screen.dart';
 import '../customer_details/customer_details_screen.dart';
 import '../add_edit_customer/add_edit_customer_screen.dart';
@@ -137,26 +138,16 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
     if (id == null) return;
     final dbHelper = context.read<AppProvider>().dbHelper;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('تأكيد الحذف'),
-        content: Text('هل تريد حذف العميل "${customer.name}" نهائيًا؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('حذف'),
-          ),
-        ],
-      ),
+    final confirm = await AppDialog.confirm(
+      context,
+      title: 'حذف العميل',
+      message:
+          'هل تريد حذف العميل "${customer.name}" نهائياً؟ لا يمكن التراجع عن هذا الإجراء.',
+      confirmLabel: 'حذف',
+      destructive: true,
     );
 
-    if (confirm != true) return;
+    if (!confirm) return;
 
     try {
       final repo = CustomerRepository(dbHelper);
@@ -196,31 +187,21 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
 
     if (total < AppConstants.trialCustomerLimit) return true;
 
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('وصلت للحد المجاني'),
-        content: Text(
+    final activate = await AppDialog.confirm(
+      context,
+      title: 'وصلت إلى الحد المجاني',
+      message:
           'وصلت للحد المجاني (${AppConstants.trialCustomerLimit} حساب).\nيرجى تفعيل التطبيق للمتابعة.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('لاحقاً'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ActivationScreen()),
-              );
-            },
-            child: const Text('تفعيل الآن'),
-          ),
-        ],
-      ),
+      confirmLabel: 'تفعيل الآن',
+      cancelLabel: 'لاحقاً',
+      icon: Icons.lock_outline,
     );
+    if (activate && mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ActivationScreen()),
+      );
+    }
     return false;
   }
 

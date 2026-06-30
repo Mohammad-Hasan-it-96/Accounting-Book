@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
 import '../../data/models/customer.dart';
 import '../../data/repositories/customer_repository.dart';
@@ -108,27 +109,17 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       if (!activated && count >= AppConstants.trialCustomerLimit) {
         if (!mounted) return;
         setState(() => _saving = false);
-        final go = await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('وصلت إلى الحد المجاني'),
-            content: Text(
+        final go = await AppDialog.confirm(
+          context,
+          title: 'وصلت إلى الحد المجاني',
+          message:
               'يمكنك إضافة حتى ${AppConstants.trialCustomerLimit} عميلاً مجاناً.\n'
               'فعّل التطبيق للاستمرار بدون حدود.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('لاحقاً'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('تفعيل الآن'),
-              ),
-            ],
-          ),
+          confirmLabel: 'تفعيل الآن',
+          cancelLabel: 'لاحقاً',
+          icon: Icons.lock_outline,
         );
-        if (go == true && mounted) {
+        if (go && mounted) {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const ActivationScreen()),
@@ -144,24 +135,15 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       );
       if (duplicate && mounted) {
         setState(() => _saving = false);
-        final proceed = await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('اسم مكرر'),
-            content: Text('يوجد عميل بالاسم "$name" مسبقاً.\nهل تريد المتابعة؟'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('تعديل الاسم'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('متابعة'),
-              ),
-            ],
-          ),
+        final proceed = await AppDialog.confirm(
+          context,
+          title: 'اسم مكرر',
+          message: 'يوجد عميل بالاسم "$name" مسبقاً.\nهل تريد المتابعة؟',
+          confirmLabel: 'متابعة',
+          cancelLabel: 'تعديل الاسم',
+          icon: Icons.info_outline,
         );
-        if (proceed != true || !mounted) return;
+        if (!proceed || !mounted) return;
         setState(() => _saving = true);
       }
     }
@@ -195,26 +177,15 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
     final id = widget.customer?.id;
     if (id == null) return;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('تأكيد الحذف'),
-        content: const Text('هل تريد حذف العميل نهائيًا؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('حذف'),
-          ),
-        ],
-      ),
+    final confirm = await AppDialog.confirm(
+      context,
+      title: 'حذف العميل',
+      message: 'هل تريد حذف العميل نهائياً؟ سيتم حذف بياناته ولا يمكن التراجع.',
+      confirmLabel: 'حذف',
+      destructive: true,
     );
 
-    if (confirm != true) return;
+    if (!confirm) return;
     if (!mounted) return;
 
     HapticFeedback.heavyImpact();
@@ -247,25 +218,14 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
   }
 
   Future<bool> _confirmDiscard() async {
-    final leave = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('تجاهل التغييرات؟'),
-        content: const Text('لديك تغييرات غير محفوظة. هل تريد المغادرة؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('تابع التعديل'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('تجاهل'),
-          ),
-        ],
-      ),
+    return AppDialog.confirm(
+      context,
+      title: 'تجاهل التغييرات؟',
+      message: 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟',
+      confirmLabel: 'تجاهل',
+      cancelLabel: 'تابع التعديل',
+      destructive: true,
     );
-    return leave == true;
   }
 
   @override

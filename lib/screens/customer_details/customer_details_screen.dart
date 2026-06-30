@@ -15,6 +15,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/theme/app_durations.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
 import '../add_edit_transaction/add_edit_transaction_screen.dart';
 
@@ -261,23 +262,14 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
   // ─── حذف حركة ─────────────────────────────────────────────────────────────
   Future<void> _deleteTransaction(tx_model.Transaction tx) async {
     final dbHelper = context.read<AppProvider>().dbHelper;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('تأكيد الحذف'),
-        content: const Text('هل تريد حذف هذه الحركة؟'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('إلغاء')),
-          TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('حذف')),
-        ],
-      ),
+    final confirm = await AppDialog.confirm(
+      context,
+      title: 'حذف الحركة',
+      message: 'هل تريد حذف هذه الحركة؟ لا يمكن التراجع عن هذا الإجراء.',
+      confirmLabel: 'حذف',
+      destructive: true,
     );
-    if (confirm != true) return;
+    if (!confirm) return;
     if (!mounted) return;
     await TransactionRepository(dbHelper).delete(tx.id!);
     _hasChanges = true;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/app_dialog.dart';
 import '../../core/widgets/app_form_field.dart';
 import '../../providers/app_provider.dart';
 
@@ -75,48 +76,24 @@ class _GroupsScreenState extends State<GroupsScreen> {
   Future<void> _deleteGroup(_GroupItem group) async {
     if (group.customerCount > 0) {
       // اسأل المستخدم هل يريد إلغاء تعيين العملاء أيضاً
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('حذف المجموعة'),
-          content: Text(
-            'المجموعة "${group.name}" تحتوي على ${group.customerCount} عميل.\n'
+      final confirm = await AppDialog.confirm(
+        context,
+        title: 'حذف المجموعة',
+        message: 'المجموعة "${group.name}" تحتوي على ${group.customerCount} عميل.\n'
             'سيتم إلغاء تعيينهم من المجموعة عند الحذف.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('إلغاء'),
-            ),
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('حذف'),
-            ),
-          ],
-        ),
+        confirmLabel: 'حذف',
+        destructive: true,
       );
-      if (confirm != true || !mounted) return;
+      if (!confirm || !mounted) return;
     } else {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('حذف المجموعة'),
-          content: Text('هل تريد حذف مجموعة "${group.name}"؟'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('إلغاء'),
-            ),
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('حذف'),
-            ),
-          ],
-        ),
+      final confirm = await AppDialog.confirm(
+        context,
+        title: 'حذف المجموعة',
+        message: 'هل تريد حذف مجموعة "${group.name}"؟',
+        confirmLabel: 'حذف',
+        destructive: true,
       );
-      if (confirm != true || !mounted) return;
+      if (!confirm || !mounted) return;
     }
 
     final db = await context.read<AppProvider>().dbHelper.db;
