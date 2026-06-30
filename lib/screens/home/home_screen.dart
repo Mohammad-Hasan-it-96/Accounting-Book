@@ -14,6 +14,7 @@ import '../../core/services/update_service.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/models/customer.dart';
+import '../../data/models/currency.dart';
 import '../currency_accounts/currency_accounts_screen.dart';
 import '../customer_details/customer_details_screen.dart';
 import '../settings/settings_screen.dart';
@@ -203,6 +204,11 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('دفتر حسابات'),
         actions: [
+          // حالة التفعيل بشكل خفيف داخل الشريط العلوي
+          _ActivationIndicator(
+            isActivated: _isActivated,
+            customerCount: _customerCount,
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'الإعدادات',
@@ -213,15 +219,17 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+      // زر الإضافة الرئيسي — بارز ودائم الظهور
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: isLoading ? null : _startAddCustomer,
+        icon: const Icon(Icons.person_add_alt_1),
+        label: const Text('إضافة عميل'),
+      ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+        // الحشوة السفلية تترك مساحة للزر العائم
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 80),
         children: [
-          // ── شريط حالة التفعيل ─────────────────────────────────────
-          _ActivationBanner(
-            isActivated: _isActivated,
-            customerCount: _customerCount,
-          ),
           if (provider.hasError)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.sm),
@@ -246,10 +254,27 @@ class _HomeScreenState extends State<HomeScreen> {
           // ── بحث سريع ────────────────────────────────────────────
           TextField(
             controller: _searchCtrl,
+            textInputAction: TextInputAction.search,
             decoration: InputDecoration(
-              hintText: 'بحث سريع عن عميل...',
+              hintText: 'ابحث عن عميل بالاسم...',
               prefixIcon: const Icon(Icons.search),
               isDense: true,
+              filled: true,
+              fillColor: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.grey.shade100,
+              border: const OutlineInputBorder(
+                borderRadius: AppRadius.lgAll,
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: const OutlineInputBorder(
+                borderRadius: AppRadius.lgAll,
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: const OutlineInputBorder(
+                borderRadius: AppRadius.lgAll,
+                borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+              ),
               suffixIcon: _searchCtrl.text.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),
@@ -329,90 +354,151 @@ class _HomeScreenState extends State<HomeScreen> {
             onExport: _exportBackup,
             inProgress: _backupInProgress,
           ),
-
-          const SizedBox(height: AppSpacing.xl),
         ],
       ),
     );
   }
+
+  // ─── بدء إضافة عميل من الرئيسية ──────────────────────────────────────────
+  // يسأل عن الدفتر (عند توفّر عملتين) ثم يفتح دفتر تلك العملة على وضع الإضافة
+  // مباشرةً، فيُعاد استخدام فحص الحد المجاني وتدفّق الإضافة الموجودَين أصلاً.
+  void _startAddCustomer() {
+    final provider = context.read<AppProvider>();
+    if (provider.loading) {
+      _showSnack('جارٍ تحميل البيانات...');
+      return;
+    }
+    final lira = provider.liraCurrency;
+    final dollar = provider.dollarCurrency;
+
+    if (lira == null && dollar == null) {
+      _showSnack(
+        'لا توجد عملة متاحة.\nاستورد قاعدة بيانات أو أعد تشغيل التطبيق.',
+        isError: true,
+      );
+      return;
+    }
+    if (lira != null && dollar == null) {
+      _openBookToAdd(lira);
+      return;
+    }
+    if (dollar != null && lira == null) {
+      _openBookToAdd(dollar);
+      return;
+    }
+
+    // عملتان متاحتان → اسأل عن الدفتر (كلاهما غير فارغ بعد الفحوص أعلاه)
+    final Currency liraBook = lira!;
+    final Currency dollarBook = dollar!;
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: AppRadius.lgRadius),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
+              child: Row(
+                children: [
+                  const Icon(Icons.person_add_alt_1, color: AppColors.primary),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text('إضافة عميل إلى:', style: AppTextStyles.subtitleBold),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet,
+                  color: AppColors.primary),
+              title: const Text('دفتر الليرة'),
+              onTap: () {
+                Navigator.pop(context);
+                _openBookToAdd(liraBook);
+              },
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.attach_money, color: AppColors.income),
+              title: const Text('دفتر الدولار'),
+              onTap: () {
+                Navigator.pop(context);
+                _openBookToAdd(dollarBook);
+              },
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openBookToAdd(Currency currency) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            CurrencyAccountsScreen(currency: currency, openAddOnStart: true),
+      ),
+    ).then((_) => _loadActivationStatus());
+  }
 }
 
-// ─── شريط حالة التفعيل ───────────────────────────────────────────────────────
-class _ActivationBanner extends StatelessWidget {
+// ─── مؤشّر حالة التفعيل (خفيف داخل الشريط العلوي) ────────────────────────────
+class _ActivationIndicator extends StatelessWidget {
   final bool isActivated;
   final int  customerCount;
-  const _ActivationBanner({
+  const _ActivationIndicator({
     required this.isActivated,
     required this.customerCount,
   });
 
   @override
   Widget build(BuildContext context) {
+    // مفعّل → شارة تحقّق بسيطة فقط
     if (isActivated) {
-      return Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-            decoration: ShapeDecoration(
-              color: Colors.green.shade50,
-              shape: StadiumBorder(
-                  side: BorderSide(color: Colors.green.shade200)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.verified_outlined,
-                    size: AppIconSize.sm, color: Colors.green.shade700),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  'مفعّل',
-                  style: TextStyle(
-                    fontSize: AppFontSize.small,
-                    color: Colors.green.shade700,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        child: Tooltip(
+          message: 'مفعّل',
+          child: Icon(Icons.verified,
+              color: Colors.white, size: AppIconSize.md),
+        ),
       );
     }
 
-    // غير مفعّل — اعرض العداد
+    // غير مفعّل → عدّاد خفيف (شريحة شفّافة فوق لون الشريط)
     final remaining = AppConstants.trialCustomerLimit - customerCount;
     final isNearLimit = remaining <= 10;
-    final color = isNearLimit ? Colors.orange : Colors.blueGrey;
 
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-          decoration: ShapeDecoration(
-            color: color.withValues(alpha: 0.08),
-            shape: StadiumBorder(
-                side: BorderSide(color: color.withValues(alpha: 0.35))),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.lock_open_outlined,
-                  size: AppIconSize.sm, color: color.shade700),
-              const SizedBox(width: AppSpacing.xs),
-              Text(
-                'مجاني: $customerCount / ${AppConstants.trialCustomerLimit}',
-                style: TextStyle(
-                  fontSize: AppFontSize.small,
-                  color: color.shade700,
-                  fontWeight: FontWeight.bold,
-                ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      child: Center(
+        child: Tooltip(
+          message:
+              'الحساب المجاني: $customerCount من ${AppConstants.trialCustomerLimit}',
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+            decoration: ShapeDecoration(
+              color: Colors.white
+                  .withValues(alpha: isNearLimit ? 0.28 : 0.16),
+              shape: const StadiumBorder(),
+            ),
+            child: Text(
+              '$customerCount/${AppConstants.trialCustomerLimit}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: AppFontSize.caption,
+                fontWeight: FontWeight.bold,
               ),
-            ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

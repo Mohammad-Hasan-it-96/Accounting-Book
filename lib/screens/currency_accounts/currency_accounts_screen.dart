@@ -17,7 +17,15 @@ import '../add_edit_customer/add_edit_customer_screen.dart';
 
 class CurrencyAccountsScreen extends StatefulWidget {
   final Currency currency;
-  const CurrencyAccountsScreen({super.key, required this.currency});
+
+  /// عند فتح الشاشة من اختصار "إضافة عميل" في الرئيسية: يبدأ تدفّق الإضافة فوراً.
+  final bool openAddOnStart;
+
+  const CurrencyAccountsScreen({
+    super.key,
+    required this.currency,
+    this.openAddOnStart = false,
+  });
 
   @override
   State<CurrencyAccountsScreen> createState() =>
@@ -36,7 +44,9 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _load().then((_) {
+      if (widget.openAddOnStart && mounted) _addCustomer();
+    });
   }
 
   @override
@@ -78,6 +88,38 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
     }
     if (!mounted) return;
     setState(() => _loading = false);
+  }
+
+  // ─── إضافة عميل ──────────────────────────────────────────────────────────
+  // يعيد استخدام فحص الحد المجاني ثم يفتح شاشة الإضافة، ويعرض تفاصيل العميل
+  // الجديد عند إنشائه. مُستدعى من زر الإضافة العائم ومن اختصار الرئيسية.
+  Future<void> _addCustomer() async {
+    final canAdd = await _checkCanAddCustomer();
+    if (!mounted) return;
+    if (!canAdd) return;
+
+    final result = await Navigator.push<Object?>(
+      context,
+      MaterialPageRoute(builder: (_) => const AddEditCustomerScreen()),
+    );
+    if (!mounted) return;
+    if (result is Customer) {
+      await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CustomerDetailsScreen(
+            customer: result,
+            currency: widget.currency,
+          ),
+        ),
+      );
+      if (!mounted) return;
+      await _load();
+      return;
+    }
+    if (result == true) {
+      await _load();
+    }
   }
 
   Future<void> _editCustomer(Customer customer) async {
@@ -507,36 +549,7 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'إضافة عميل',
-        onPressed: () async {
-          // فحص الحد المجاني قبل فتح شاشة الإضافة
-          final canAdd = await _checkCanAddCustomer();
-          if (!context.mounted) return;
-          if (!canAdd) return;
-
-          final result = await Navigator.push<Object?>(
-            context,
-            MaterialPageRoute(
-                builder: (_) => const AddEditCustomerScreen()),
-          );
-          if (!context.mounted) return;
-          if (result is Customer) {
-            await Navigator.push<bool>(
-              context,
-              MaterialPageRoute(
-                builder: (_) => CustomerDetailsScreen(
-                  customer: result,
-                  currency: widget.currency,
-                ),
-              ),
-            );
-            if (!context.mounted) return;
-            await _load();
-            return;
-          }
-          if (result == true) {
-            await _load();
-          }
-        },
+        onPressed: _addCustomer,
         child: const Icon(Icons.person_add),
       ),
     );
