@@ -306,6 +306,11 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
         : _balance > 0
             ? AppColors.income
             : AppColors.expense;
+    final balanceStatus = _balance == 0
+        ? 'مسوّى'
+        : _balance > 0
+            ? 'مطلوب'
+            : 'مدفوع';
 
     return PopScope<bool>(
       canPop: false,
@@ -375,13 +380,15 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // ─── بطاقة معلومات العميل ────────────────────────────
-                _CustomerHeader(
-                  customer: widget.customer,
-                  currency: widget.currency,
+                // ─── معلومات العميل ─────────────────────────────────
+                _CustomerHeader(customer: widget.customer),
+                // ─── بطاقة الرصيد (بارزة) ───────────────────────────
+                _BalanceCard(
                   balance: _balance,
-                  txCount: _transactions.length,
+                  currencyName: widget.currency.displayName,
                   balanceColor: balanceColor,
+                  status: balanceStatus,
+                  txCount: _transactions.length,
                 ),
                 _SummarySection(
                   summary: summary,
@@ -492,19 +499,15 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                 // ─── قائمة الحركات (الأحدث أولاً) ──────────────────
                 Expanded(
                   child: visibleTransactions.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.receipt_long,
-                                  size: AppIconSize.empty,
-                                  color: Colors.grey.shade300),
-                              const SizedBox(height: AppSpacing.sm),
-                              Text('لا توجد حركات',
-                                  style: TextStyle(
-                                      color: Colors.grey.shade500)),
-                            ],
-                          ),
+                      ? _EmptyTransactions(
+                          filtered: _fromDate != null ||
+                              _toDate != null ||
+                              _txTypeFilter != 0,
+                          onClearFilter: () => setState(() {
+                            _fromDate = null;
+                            _toDate = null;
+                            _txTypeFilter = 0;
+                          }),
                         )
                       : RefreshIndicator(
                           onRefresh: _load,
@@ -574,131 +577,198 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
   }
 }
 
-// ─── بطاقة معلومات العميل ────────────────────────────────────────────────────
+// ─── معلومات العميل ──────────────────────────────────────────────────────────
 class _CustomerHeader extends StatelessWidget {
   final Customer customer;
-  final Currency currency;
-  final double balance;
-  final int txCount;
-  final Color balanceColor;
 
-  const _CustomerHeader({
-    required this.customer,
-    required this.currency,
-    required this.balance,
-    required this.txCount,
-    required this.balanceColor,
-  });
+  const _CustomerHeader({required this.customer});
 
   @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
     final groupName = safeGroupName(customer);
+    final hasPhone = customer.gsm != null && customer.gsm!.isNotEmpty;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(
           AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.xs),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.cardDark : Colors.white,
+        borderRadius: AppRadius.mdAll,
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: primary.withValues(alpha: 0.12),
+            child: Text(
+              customer.name.isNotEmpty ? customer.name[0] : '؟',
+              style: TextStyle(
+                  color: primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: AppFontSize.title),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  customer.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.titleBold,
+                ),
+                if (hasPhone) ...[
+                  const SizedBox(height: AppSpacing.xxs),
+                  _InfoLine(icon: Icons.phone_outlined, text: customer.gsm!),
+                ],
+                if (groupName != null) ...[
+                  const SizedBox(height: AppSpacing.xxs),
+                  _InfoLine(icon: Icons.folder_outlined, text: groupName),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// سطر معلومة ثانوية (أيقونة + نص)
+class _InfoLine extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _InfoLine({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: AppIconSize.sm, color: Colors.grey.shade500),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                fontSize: AppFontSize.body, color: Colors.grey.shade600),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── بطاقة الرصيد (بارزة) ────────────────────────────────────────────────────
+class _BalanceCard extends StatelessWidget {
+  final double balance;
+  final String currencyName;
+  final Color balanceColor;
+  final String status;
+  final int txCount;
+
+  const _BalanceCard({
+    required this.balance,
+    required this.currencyName,
+    required this.balanceColor,
+    required this.status,
+    required this.txCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.xs),
       padding: const EdgeInsets.all(AppSpacing.lg),
-       decoration: BoxDecoration(
-         color: balanceColor.withValues(alpha: 0.07),
-         borderRadius: AppRadius.mdAll,
-         border: Border.all(color: balanceColor.withValues(alpha: 0.25)),
-         boxShadow: [
-           BoxShadow(
-             color: Colors.black.withValues(alpha: 0.05),
-             blurRadius: 4,
-             offset: Offset(0, 2),
-           ),
-         ],
-       ),
+      decoration: BoxDecoration(
+        color: balanceColor,
+        borderRadius: AppRadius.mdAll,
+        boxShadow: [
+          BoxShadow(
+            color: balanceColor.withValues(alpha: 0.35),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ─── الاسم ────────────────────────────────────────────────
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: balanceColor.withValues(alpha: 0.15),
-                child: Text(
-                  customer.name.isNotEmpty ? customer.name[0] : '؟',
-                  style: TextStyle(
-                      color: balanceColor, fontWeight: FontWeight.bold),
-                ),
+              Text(
+                'الرصيد الحالي',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: AppFontSize.small),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      customer.name,
-                      style: AppTextStyles.subtitleBold,
-                    ),
-                    if (customer.gsm != null && customer.gsm!.isNotEmpty)
-                      Text(
-                        customer.gsm!,
-                        style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: AppFontSize.body),
-                      ),
-                    if (groupName != null)
-                      Text(
-                        'المجموعة: $groupName',
-                        style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: AppFontSize.small),
-                      ),
-                  ],
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md, vertical: AppSpacing.xxs),
+                decoration: ShapeDecoration(
+                  color: Colors.white.withValues(alpha: 0.22),
+                  shape: const StadiumBorder(),
+                ),
+                child: Text(
+                  status,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: AppFontSize.caption,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.md),
-          const Divider(height: 1),
-          const SizedBox(height: AppSpacing.md),
-          // ─── الرصيد + عدد الحركات ────────────────────────────────
+          const SizedBox(height: AppSpacing.sm),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
-              // الرصيد
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('الرصيد الحالي',
-                      style: TextStyle(
-                          fontSize: AppFontSize.caption,
-                          color: Colors.grey.shade500)),
-                  const SizedBox(height: AppSpacing.xxs),
-                   Text(
-                     '${FormatHelper.formatAmount(balance)} ${currency.displayName}',
-                     style: TextStyle(
-                         color: balanceColor,
-                         fontSize: AppFontSize.display,
-                         fontWeight: FontWeight.bold),
-                   ),
-                ],
+              Flexible(
+                child: Text(
+                  FormatHelper.formatAmount(balance),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: AppFontSize.display,
+                      fontWeight: FontWeight.bold),
+                ),
               ),
-              // عدد الحركات
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-                decoration: ShapeDecoration(
-                  color: Colors.grey.withValues(alpha: 0.1),
-                  shape: const StadiumBorder(),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.receipt_long,
-                        size: AppIconSize.sm, color: Colors.grey.shade600),
-                    const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      '$txCount حركة',
-                      style: TextStyle(
-                          fontSize: AppFontSize.body,
-                          color: Colors.grey.shade700),
-                    ),
-                  ],
-                ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                currencyName,
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: AppFontSize.subtitle,
+                    fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Icon(Icons.receipt_long,
+                  size: AppIconSize.sm,
+                  color: Colors.white.withValues(alpha: 0.85)),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                '$txCount حركة',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: AppFontSize.small),
               ),
             ],
           ),
@@ -730,10 +800,20 @@ class _TransactionTile extends StatelessWidget {
     final color = isIn ? AppColors.income : AppColors.expense;
     final label = BalanceHelper.transactionLabel(tx.inFlag);
     final hasRemarks = tx.remarks != null && tx.remarks!.isNotEmpty;
+    final runningColor = runningBalance == 0
+        ? Colors.grey
+        : runningBalance > 0
+            ? AppColors.income
+            : AppColors.expense;
 
     return Card(
       margin: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.mdAll,
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
             AppSpacing.md, AppSpacing.md, AppSpacing.xs, AppSpacing.md),
@@ -742,8 +822,8 @@ class _TransactionTile extends StatelessWidget {
           children: [
             // ─── أيقونة النوع ─────────────────────────────────────
             Container(
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
@@ -751,116 +831,122 @@ class _TransactionTile extends StatelessWidget {
               child: Icon(
                 isIn ? Icons.arrow_downward : Icons.arrow_upward,
                 color: color,
-                size: AppIconSize.md,
+                size: AppIconSize.lg,
               ),
             ),
             const SizedBox(width: AppSpacing.md),
-            // ─── التفاصيل (نوع + تاريخ + ملاحظة) ────────────────
+            // ─── التفاصيل (نوع + تاريخ + ملاحظة + رصيد جارٍ) ──────
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // نوع الحركة كـ badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
-                    decoration: ShapeDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      shape: const StadiumBorder(),
-                    ),
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: AppFontSize.caption,
-                        fontWeight: FontWeight.bold,
+                  // النوع كـ badge + التاريخ بجانبه
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                            vertical: AppSpacing.xxs),
+                        decoration: ShapeDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          shape: const StadiumBorder(),
+                        ),
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: AppFontSize.caption,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (tx.date != null) ...[
+                        const SizedBox(width: AppSpacing.sm),
+                        Flexible(
+                          child: Text(
+                            FormatHelper.formatDate(tx.date),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: AppFontSize.small,
+                                color: Colors.grey.shade500),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: AppSpacing.xs),
-                   // التاريخ
-                   if (tx.date != null)
-                     Text(
-                       FormatHelper.formatDate(tx.date),
-                       style: TextStyle(
-                           fontSize: AppFontSize.body,
-                           color: Colors.grey.shade500),
-                     ),
                   // الملاحظة
                   if (hasRemarks) ...[
-                    const SizedBox(height: AppSpacing.xxs),
+                    const SizedBox(height: AppSpacing.xs),
                     Text(
-                       tx.remarks!,
-                       style: TextStyle(
-                           fontSize: AppFontSize.small,
-                           color: Colors.grey.shade600),
-                       maxLines: 1,
-                       overflow: TextOverflow.ellipsis,
+                      tx.remarks!,
+                      style: TextStyle(
+                          fontSize: AppFontSize.small,
+                          color: Colors.grey.shade600),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
+                  const SizedBox(height: AppSpacing.xs),
+                  // الرصيد الجاري بعد هذه الحركة
+                  Text(
+                    'الرصيد بعدها: ${FormatHelper.formatAmount(runningBalance)}',
+                    style: TextStyle(
+                        fontSize: AppFontSize.caption,
+                        color: runningColor,
+                        fontWeight: FontWeight.w500),
+                  ),
                 ],
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            // ─── المبلغ + أزرار ───────────────────────────────────
+            // ─── المبلغ (بارز) ───────────────────────────────────
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                 // المبلغ — واضح وكبير
-                 Text(
-                   FormatHelper.formatAmount(tx.out),
-                   style: TextStyle(
-                     color: color,
-                     fontSize: AppFontSize.title,
-                     fontWeight: FontWeight.bold,
-                     letterSpacing: 0.3,
-                   ),
-                 ),
+                Text(
+                  FormatHelper.formatAmount(tx.out),
+                  style: TextStyle(
+                    color: color,
+                    fontSize: AppFontSize.title,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.3,
+                  ),
+                ),
                 Text(
                   currencyName,
                   style: TextStyle(
                       fontSize: AppFontSize.micro, color: Colors.grey.shade400),
                 ),
-                const SizedBox(height: AppSpacing.xxs),
-                // الرصيد الجاري
-                Text(
-                  'رصيد: ${FormatHelper.formatAmount(runningBalance)}',
-                  style: TextStyle(
-                      fontSize: AppFontSize.micro,
-                      color: runningBalance == 0
-                          ? Colors.grey
-                          : runningBalance > 0
-                              ? AppColors.income
-                              : AppColors.expense),
+              ],
+            ),
+            // ─── قائمة الإجراءات ─────────────────────────────────
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert,
+                  size: AppIconSize.md, color: Colors.grey.shade400),
+              tooltip: 'خيارات',
+              onSelected: (v) {
+                if (v == 'edit') onEdit();
+                if (v == 'delete') onDelete();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem<String>(
+                  value: 'edit',
+                  child: Row(children: [
+                    Icon(Icons.edit_outlined, size: AppIconSize.md),
+                    SizedBox(width: AppSpacing.sm),
+                    Text('تعديل'),
+                  ]),
                 ),
-                const SizedBox(height: AppSpacing.xxs),
-                // أزرار تعديل وحذف
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Icon(Icons.edit_outlined,
-                            size: AppIconSize.sm, color: Colors.grey.shade500),
-                        onPressed: onEdit,
-                        tooltip: 'تعديل',
-                      ),
-                    ),
-                    SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.delete_outline,
-                            size: AppIconSize.sm, color: Colors.red),
-                        onPressed: onDelete,
-                        tooltip: 'حذف',
-                      ),
-                    ),
-                  ],
+                PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Row(children: [
+                    Icon(Icons.delete_outline,
+                        size: AppIconSize.md, color: Colors.red),
+                    SizedBox(width: AppSpacing.sm),
+                    Text('حذف', style: TextStyle(color: Colors.red)),
+                  ]),
                 ),
               ],
             ),
@@ -955,6 +1041,7 @@ class _SummarySection extends StatelessWidget {
               color: AppColors.income,
             ),
           ),
+          const _SummaryDivider(),
           Expanded(
             child: _SummaryValue(
               title: 'إجمالي مدفوع',
@@ -962,6 +1049,7 @@ class _SummarySection extends StatelessWidget {
               color: AppColors.expense,
             ),
           ),
+          const _SummaryDivider(),
           Expanded(
             child: _SummaryValue(
               title: 'الرصيد النهائي',
@@ -972,6 +1060,21 @@ class _SummarySection extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// فاصل رأسي خفيف بين قيم الملخّص
+class _SummaryDivider extends StatelessWidget {
+  const _SummaryDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 30,
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      color: Colors.grey.withValues(alpha: 0.2),
     );
   }
 }
@@ -1009,6 +1112,65 @@ class _SummaryValue extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─── حالة فارغة للحركات ──────────────────────────────────────────────────────
+class _EmptyTransactions extends StatelessWidget {
+  final bool filtered;
+  final VoidCallback onClearFilter;
+
+  const _EmptyTransactions({
+    required this.filtered,
+    required this.onClearFilter,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              filtered ? Icons.filter_alt_off_outlined : Icons.receipt_long,
+              size: AppIconSize.empty,
+              color: Colors.grey.shade300,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              filtered ? 'لا توجد حركات مطابقة للفلتر' : 'لا توجد حركات بعد',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: AppFontSize.subtitle,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              filtered
+                  ? 'جرّب تعديل التواريخ أو نوع الحركة'
+                  : 'اضغط زر ( + ) لإضافة أول حركة',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: AppFontSize.small,
+                color: Colors.grey.shade500,
+              ),
+            ),
+            if (filtered) ...[
+              const SizedBox(height: AppSpacing.md),
+              TextButton.icon(
+                onPressed: onClearFilter,
+                icon: const Icon(Icons.clear, size: AppIconSize.sm),
+                label: const Text('مسح الفلتر'),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
