@@ -40,10 +40,6 @@ class AppTheme {
         style: TextButton.styleFrom(shape: _buttonShape),
       );
 
-  // الافتراضي يطابق معيار Material 3 (24) حتى لا تتقلّص الأيقونات غير المحدّدة
-  static const IconThemeData _iconTheme =
-      IconThemeData(size: AppIconSize.lg);
-
   static InputDecorationTheme get _inputDecorationTheme =>
       const InputDecorationTheme(
         border: OutlineInputBorder(borderRadius: AppRadius.smAll),
@@ -102,7 +98,6 @@ class AppTheme {
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
-      iconTheme: _iconTheme,
       elevatedButtonTheme: _elevatedButtonTheme,
       filledButtonTheme: _filledButtonTheme,
       outlinedButtonTheme: _outlinedButtonTheme,
@@ -136,7 +131,6 @@ class AppTheme {
         backgroundColor: AppColors.primaryLight,
         foregroundColor: Colors.white,
       ),
-      iconTheme: _iconTheme,
       elevatedButtonTheme: _elevatedButtonTheme,
       filledButtonTheme: _filledButtonTheme,
       outlinedButtonTheme: _outlinedButtonTheme,
