@@ -703,13 +703,13 @@ class _CustomerTile extends StatelessWidget {
     final isZero = balance == 0;
 
     final avatarBg = isZero
-        ? Colors.grey.shade400
+        ? Colors.grey.shade600
         : balance > 0
         ? AppColors.income
         : AppColors.expense;
 
     final balanceColor = isZero
-        ? Colors.grey.shade500
+        ? Colors.grey.shade600
         : balance > 0
         ? AppColors.incomeDark
         : AppColors.expenseDark;

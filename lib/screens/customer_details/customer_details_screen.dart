@@ -332,7 +332,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     final visibleTransactions = _filteredTransactions;
     final summary = _calculateSummary(visibleTransactions);
     final balanceColor = _balance == 0
-        ? Colors.grey
+        ? Colors.grey.shade600
         : _balance > 0
         ? AppColors.income
         : AppColors.expense;
@@ -849,7 +849,7 @@ class _TransactionTile extends StatelessWidget {
     final label = BalanceHelper.transactionLabel(tx.inFlag);
     final hasRemarks = tx.remarks != null && tx.remarks!.isNotEmpty;
     final runningColor = runningBalance == 0
-        ? Colors.grey
+        ? Colors.grey.shade600
         : runningBalance > 0
         ? AppColors.income
         : AppColors.expense;
