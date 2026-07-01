@@ -77,15 +77,15 @@ class _AppState extends State<App> with WidgetsBindingObserver {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          // منع تكسُّر التخطيط عند أحجام الخط الكبيرة
+          // منع تكسُّر التخطيط عند أحجام الخط الكبيرة.
+          // نضع حدًّا أعلى فقط (1.3) دون حدٍّ أدنى: تثبيت الحد الأدنى عند 1.0
+          // يتعارض مع إعادة قصّ Flutter الداخلية (مثل ترويسة منتقي التاريخ) عندما
+          // يكون مقياس خط الجهاز ≤ 1.0، فيفشل التأكيد maxScale > minScale.
           builder: (context, child) {
             final mq = MediaQuery.of(context);
             return MediaQuery(
               data: mq.copyWith(
-                textScaler: mq.textScaler.clamp(
-                  minScaleFactor: 1.0,
-                  maxScaleFactor: 1.3,
-                ),
+                textScaler: mq.textScaler.clamp(maxScaleFactor: 1.3),
               ),
               child: child!,
             );

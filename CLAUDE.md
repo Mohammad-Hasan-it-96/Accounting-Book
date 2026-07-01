@@ -121,4 +121,4 @@ All "failed to load" UI goes through one widget — do not hand-roll error rows/
 - Transient/one-off failures still use `AppSnackBar.error(...)`; `AppErrorState` is for persistent "this section couldn't load" placeholders.
 
 ### Localization
-Arabic-first RTL layout. Uses `flutter_localizations` + `intl`. Comments throughout the codebase are in Arabic. `app.dart` clamps `textScaler` to 1.0–1.3 to prevent layout breakage at large system font sizes.
+Arabic-first RTL layout. Uses `flutter_localizations` + `intl`. Comments throughout the codebase are in Arabic. `app.dart` caps `textScaler` at 1.3 (upper bound only, no lower bound) to prevent layout breakage at large system font sizes. Do not add a lower bound (e.g. `minScaleFactor: 1.0`) — a positive minimum collides with Flutter's internal re-clamping (e.g. the date-picker header clamping to `1.0` when the device font scale is ≤ 1.0), tripping the `maxScale > minScale` assertion in `_ClampedTextScaler` and crashing the route.
