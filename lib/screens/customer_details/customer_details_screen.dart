@@ -66,56 +66,47 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
             999,
           );
 
-    // Create a list of transactions with their parsed date (or null)
-    final List<Map<String, dynamic>> processed = [];
-    for (final tx in _transactions) {
-      final parsed = _parseTxDate(tx.date);
-      processed.add({'tx': tx, 'date': parsed});
-    }
+    // كل حركة مقرونة بتاريخها المُحلَّل (أو null عند تعذّر التحليل)
+    final processed = <({tx_model.Transaction tx, DateTime? date})>[
+      for (final tx in _transactions) (tx: tx, date: _parseTxDate(tx.date)),
+    ];
 
-    // Determine if we have an active date filter
+    // فلتر التاريخ: بلا فلتر → ضمّ الكل؛ مع فلتر → تاريخ صالح ضمن المدى
     final bool hasActiveFilter = from != null || to != null;
-    final List<Map<String, dynamic>> filtered = processed.where((item) {
+    final filtered = processed.where((item) {
       if (!hasActiveFilter) {
-        // No date filter: include regardless of parse success
-        return true;
-      } else {
-        // Has date filter: we require a valid date and within range
-        if (item['date'] == null) return false;
-        if (from != null && item['date'].isBefore(from)) return false;
-        if (to != null && item['date'].isAfter(to)) return false;
+        // بلا فلتر تاريخ: يُضمّ بغضّ النظر عن نجاح التحليل
         return true;
       }
+      // مع فلتر تاريخ: يلزم تاريخ صالح وضمن المدى
+      final date = item.date;
+      if (date == null) return false;
+      if (from != null && date.isBefore(from)) return false;
+      if (to != null && date.isAfter(to)) return false;
+      return true;
     }).toList();
 
-    // Sort: first by date descending (null dates last), then maintain original order for equal dates
+    // ترتيب: حسب التاريخ تنازلياً (بلا تاريخ في النهاية)، مع إبقاء ترتيب المتساويين
     filtered.sort((a, b) {
-      final dateA = a['date'];
-      final dateB = b['date'];
-      // If both have dates, compare by date descending
+      final dateA = a.date;
+      final dateB = b.date;
+      // كلاهما بتاريخ → مقارنة تنازلية
       if (dateA != null && dateB != null) {
-        return dateB.compareTo(dateA); // descending
+        return dateB.compareTo(dateA); // تنازلي
       }
-      // If only a has date, a comes first
+      // ذو التاريخ يسبق الذي بلا تاريخ
       if (dateA != null) return -1;
-      // If only b has date, b comes first
       if (dateB != null) return 1;
-      // Both null: maintain original order (do nothing)
+      // كلاهما بلا تاريخ: أبقِ الترتيب الأصلي
       return 0;
     });
 
     // فلتر النوع
     final typeFiltered = _txTypeFilter == 0
         ? filtered
-        : filtered
-              .where(
-                (item) =>
-                    (item['tx'] as tx_model.Transaction).inFlag ==
-                    _txTypeFilter,
-              )
-              .toList();
+        : filtered.where((item) => item.tx.inFlag == _txTypeFilter).toList();
 
-    return typeFiltered.map((e) => e['tx'] as tx_model.Transaction).toList();
+    return typeFiltered.map((e) => e.tx).toList();
   }
 
   Future<void> _pickFromDate() async {
@@ -251,17 +242,17 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     try {
       final dbHelper = context.read<AppProvider>().dbHelper;
       final repo = TransactionRepository(dbHelper);
-      final txList = await repo.getByCustomerAndCurrency(
-        widget.customer.id!,
-        widget.currency.id!,
-      );
-      final balance = await repo.getBalance(
-        widget.customer.id!,
-        widget.currency.id!,
-      );
+      // القراءتان مستقلّتان → أطلقهما معاً بدل التسلسل
+      final results = await Future.wait([
+        repo.getByCustomerAndCurrency(
+          widget.customer.id!,
+          widget.currency.id!,
+        ),
+        repo.getBalance(widget.customer.id!, widget.currency.id!),
+      ]);
       if (!mounted) return;
-      _transactions = txList;
-      _balance = balance;
+      _transactions = results[0] as List<tx_model.Transaction>;
+      _balance = results[1] as double;
       _loadError = false;
     } catch (_) {
       if (!mounted) return;
