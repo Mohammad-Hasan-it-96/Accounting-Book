@@ -87,7 +87,7 @@ class AppErrorState extends StatelessWidget {
               Text(
                 message!,
                 textAlign: TextAlign.center,
-                style: AppTextStyles.body.copyWith(color: Colors.grey.shade500),
+                style: AppTextStyles.body.copyWith(color: Colors.grey.shade600),
               ),
             ],
             if (onRetry != null) ...[

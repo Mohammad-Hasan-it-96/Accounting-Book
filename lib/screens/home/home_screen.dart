@@ -251,6 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
               suffixIcon: _searchCtrl.text.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),
+                      tooltip: 'مسح البحث',
                       onPressed: () {
                         _searchCtrl.clear();
                         setState(() {});
@@ -287,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   'عند فتح عميل من البحث سيتم سؤالك عن الدفتر.',
                   style: TextStyle(
                       fontSize: AppFontSize.caption,
-                      color: Colors.grey.shade500),
+                      color: Colors.grey.shade600),
                 ),
               ),
           ],

@@ -324,7 +324,7 @@ class _DeviceIdCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             Text(
               'شارك هذا المعرّف مع المطوّر لتسريع عملية التفعيل.',
-              style: TextStyle(fontSize: AppFontSize.caption, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: AppFontSize.caption, color: Colors.grey.shade600),
             ),
           ],
         ),

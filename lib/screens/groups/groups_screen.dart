@@ -198,7 +198,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                         : '${g.customerCount} عميل',
                     style: TextStyle(
                       fontSize: AppFontSize.small,
-                      color: Colors.grey.shade500,
+                      color: Colors.grey.shade600,
                     ),
                   ),
                   trailing: PopupMenuButton<String>(

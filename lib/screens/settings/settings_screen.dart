@@ -792,23 +792,35 @@ class _AppInfoCard extends StatelessWidget {
                       fontWeight: FontWeight.bold, fontSize: AppFontSize.small),
                 ),
                 const Spacer(),
-                InkWell(
-                  onTap: onCopy,
-                  borderRadius: AppRadius.smAll,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.copy, size: AppIconSize.sm, color: primary),
-                        const SizedBox(width: AppSpacing.xs),
-                        Text(
-                          'نسخ',
-                          style: TextStyle(
-                              fontSize: AppFontSize.small, color: primary),
+                Semantics(
+                  button: true,
+                  label: 'نسخ معرّف الجهاز',
+                  child: InkWell(
+                    onTap: onCopy,
+                    borderRadius: AppRadius.smAll,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: Center(
+                        widthFactor: 1,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: AppSpacing.xxs),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.copy,
+                                  size: AppIconSize.sm, color: primary),
+                              const SizedBox(width: AppSpacing.xs),
+                              Text(
+                                'نسخ',
+                                style: TextStyle(
+                                    fontSize: AppFontSize.small, color: primary),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),

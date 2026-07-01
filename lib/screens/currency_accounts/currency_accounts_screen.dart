@@ -456,6 +456,7 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
                 suffixIcon: _searchCtrl.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
+                        tooltip: 'مسح البحث',
                         onPressed: () {
                           _searchCtrl.clear();
                           setState(() {});
@@ -503,7 +504,7 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
                       '${displayed.length} نتيجة',
                       style: TextStyle(
                         fontSize: AppFontSize.small,
-                        color: Colors.grey.shade500,
+                        color: Colors.grey.shade600,
                       ),
                     ),
                 ],
@@ -818,7 +819,7 @@ class _CustomerTile extends StatelessWidget {
                     '  ·  ',
                     style: TextStyle(
                       fontSize: AppFontSize.small,
-                      color: Colors.grey.shade400,
+                      color: Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -826,7 +827,7 @@ class _CustomerTile extends StatelessWidget {
                   txCountLabel,
                   style: TextStyle(
                     fontSize: AppFontSize.small,
-                    color: Colors.grey.shade500,
+                    color: Colors.grey.shade600,
                   ),
                 ),
               ],
@@ -839,7 +840,7 @@ class _CustomerTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: AppFontSize.caption,
-                  color: Colors.grey.shade400,
+                  color: Colors.grey.shade600,
                   fontStyle: FontStyle.italic,
                 ),
               ),

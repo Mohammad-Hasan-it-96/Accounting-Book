@@ -924,7 +924,7 @@ class _TransactionTile extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: AppFontSize.small,
-                              color: Colors.grey.shade500,
+                              color: Colors.grey.shade600,
                             ),
                           ),
                         ),
@@ -976,7 +976,7 @@ class _TransactionTile extends StatelessWidget {
                   currencyName,
                   style: TextStyle(
                     fontSize: AppFontSize.micro,
-                    color: Colors.grey.shade400,
+                    color: Colors.grey.shade600,
                   ),
                 ),
               ],
@@ -1044,26 +1044,39 @@ class _TypeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = color ?? Theme.of(context).colorScheme.primary;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: AppDurations.fast,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.xs,
-        ),
-        decoration: ShapeDecoration(
-          color: selected ? c.withValues(alpha: 0.15) : Colors.transparent,
-          shape: StadiumBorder(
-            side: BorderSide(color: selected ? c : Colors.grey.shade300),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: AppFontSize.small,
-            color: selected ? c : Colors.grey.shade600,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+    // زر اختيار: دور «button» + حالة الاختيار للقارئ، ومساحة لمس ≥ 48dp
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Center(
+            widthFactor: 1,
+            child: AnimatedContainer(
+              duration: AppDurations.fast,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.xs,
+              ),
+              decoration: ShapeDecoration(
+                color:
+                    selected ? c.withValues(alpha: 0.15) : Colors.transparent,
+                shape: StadiumBorder(
+                  side: BorderSide(color: selected ? c : Colors.grey.shade300),
+                ),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: AppFontSize.small,
+                  color: selected ? c : Colors.grey.shade600,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ),
           ),
         ),
       ),

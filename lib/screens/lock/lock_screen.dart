@@ -217,11 +217,16 @@ class _NumPad extends StatelessWidget {
             onBiometric != null
                 ? _PadButton(
                     icon: Icons.fingerprint,
+                    semanticLabel: 'الدخول بالبصمة',
                     onTap: onBiometric!,
                   )
                 : const SizedBox(width: 80),
             _PadButton(label: '0', onTap: () => onDigit('0')),
-            _PadButton(icon: Icons.backspace_outlined, onTap: onDelete),
+            _PadButton(
+              icon: Icons.backspace_outlined,
+              semanticLabel: 'مسح',
+              onTap: onDelete,
+            ),
           ],
         ),
       ],
@@ -232,30 +237,42 @@ class _NumPad extends StatelessWidget {
 class _PadButton extends StatelessWidget {
   final String? label;
   final IconData? icon;
+  final String? semanticLabel;
   final VoidCallback onTap;
 
-  const _PadButton({this.label, this.icon, required this.onTap});
+  const _PadButton({
+    this.label,
+    this.icon,
+    this.semanticLabel,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 72,
-        height: 72,
-        margin: const EdgeInsets.all(AppSpacing.sm),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white.withValues(alpha: 0.12),
-        ),
-        child: Center(
-          child: label != null
-              ? Text(label!,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: AppFontSize.headline,
-                      fontWeight: FontWeight.w500))
-              : Icon(icon, color: Colors.white, size: AppIconSize.lg),
+    // دور «button» + تسمية للقارئ (الأرقام تحمل نصها؛ الأيقونات تحتاج تسمية)
+    return Semantics(
+      button: true,
+      label: semanticLabel ?? label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 72,
+          height: 72,
+          margin: const EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white.withValues(alpha: 0.12),
+          ),
+          child: Center(
+            child: label != null
+                ? Text(label!,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: AppFontSize.headline,
+                        fontWeight: FontWeight.w500))
+                : Icon(icon, color: Colors.white, size: AppIconSize.lg),
+          ),
         ),
       ),
     );
