@@ -245,7 +245,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                 IconButton(
                   tooltip: 'حذف العميل',
                   onPressed: _saving ? null : _deleteCustomer,
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  icon: const Icon(Icons.delete_outline),
                 ),
             ],
           ),

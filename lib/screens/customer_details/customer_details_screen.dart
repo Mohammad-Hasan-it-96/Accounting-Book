@@ -374,7 +374,6 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
             IconButton(
               icon: const Icon(Icons.copy),
               tooltip: 'نسخ',
-              color: Theme.of(context).primaryColor,
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: _buildStatement()));
                 AppSnackBar.success(context, 'تم نسخ كشف الحساب');
@@ -383,13 +382,11 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
             IconButton(
               icon: const Icon(Icons.share),
               tooltip: 'مشاركة',
-              color: Theme.of(context).primaryColor,
               onPressed: () => Share.share(_buildStatement()),
             ),
             IconButton(
               icon: const Icon(Icons.picture_as_pdf_outlined),
               tooltip: 'تصدير PDF',
-              color: Theme.of(context).primaryColor,
               onPressed: _exportPdf,
             ),
           ],

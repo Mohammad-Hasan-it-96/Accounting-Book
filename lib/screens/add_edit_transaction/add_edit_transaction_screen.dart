@@ -247,7 +247,7 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                 IconButton(
                   tooltip: 'حذف الحركة',
                   onPressed: _saving ? null : _deleteTransaction,
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  icon: const Icon(Icons.delete_outline),
                 ),
             ],
           ),

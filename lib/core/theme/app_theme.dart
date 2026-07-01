@@ -62,10 +62,17 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll),
       );
 
+  // شريط علوي موحّد: ارتفاع ثابت، أيقونات بيضاء بحجم موحّد،
+  // حشوة عنوان ثابتة، وطباعة موحّدة عبر كل الشاشات.
   static const AppBarTheme _appBarBase = AppBarTheme(
     foregroundColor: Colors.white,
     elevation: 2,
     centerTitle: true,
+    toolbarHeight: kToolbarHeight,
+    titleSpacing: AppSpacing.lg,
+    iconTheme: IconThemeData(color: Colors.white, size: AppIconSize.lg),
+    actionsIconTheme:
+        IconThemeData(color: Colors.white, size: AppIconSize.lg),
     titleTextStyle: TextStyle(
       color: Colors.white,
       fontSize: AppFontSize.title,
