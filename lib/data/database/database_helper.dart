@@ -89,6 +89,11 @@ class DatabaseHelper {
       await _addColumnIfMissing(db, AppConstants.tableCustomers, 'notes', 'TEXT');
       await _addColumnIfMissing(db, AppConstants.tableCustomers, 'is_archived', 'INTEGER DEFAULT 0');
     }
+    if (oldVersion < 4) {
+      // فهرس مركّب جديد (idx_tx_cus_curr). _createIndexes يستخدم IF NOT EXISTS
+      // فلا يضرّ إعادة استدعائه، ويضمن وجود جميع الفهارس بعد الترقية.
+      await _createIndexes(db);
+    }
   }
 
   Future<void> _createIndexes(Database db) async {
@@ -100,6 +105,10 @@ class DatabaseHelper {
         'CREATE INDEX IF NOT EXISTS idx_tx_date ON ${AppConstants.tableTransactions}(date_)');
     await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_cus_name ON ${AppConstants.tableCustomers}(name)');
+    // فهرس مركّب للاستعلام الأكثر سخونة: حركات عميل في عملة محددة
+    // (WHERE cus_id=? AND curr_id=?) — يخدم شاشة تفاصيل العميل وحساب الرصيد.
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_tx_cus_curr ON ${AppConstants.tableTransactions}(cus_id, curr_id)');
   }
 
   // ─── استيراد قاعدة بيانات خارجية ────────────────────────────────────────
@@ -343,6 +352,10 @@ class DatabaseHelper {
       )
     ''');
     // reminders اختياري: لا ننشئه ولا نفرضه كي تبقى الاستعادة متوافقة مع كل النسخ.
+
+    // اضمن وجود الفهارس بعد أي مواءمة (مثلاً بعد استيراد قاعدة قديمة
+    // user_version‏≥3 تتخطّى _onUpgrade فتبقى بلا فهارس). idempotent.
+    await _createIndexes(database);
   }
 
   // ─── التحقق من وجود الجداول والأعمدة الأساسية ─────────────────────────────

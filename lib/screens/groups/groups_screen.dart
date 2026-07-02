@@ -7,6 +7,7 @@ import '../../core/widgets/app_empty_state.dart';
 import '../../core/widgets/app_error_state.dart';
 import '../../core/widgets/app_form_field.dart';
 import '../../core/widgets/app_loading.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../providers/app_provider.dart';
 
 class GroupsScreen extends StatefulWidget {
@@ -61,8 +62,16 @@ class _GroupsScreenState extends State<GroupsScreen> {
   Future<void> _addGroup() async {
     final name = await _nameDialog(title: 'مجموعة جديدة');
     if (name == null || name.isEmpty || !mounted) return;
-    final db = await context.read<AppProvider>().dbHelper.db;
-    await db.insert(AppConstants.tableGroups, {'name': name});
+    try {
+      final db = await context.read<AppProvider>().dbHelper.db;
+      await db.insert(AppConstants.tableGroups, {'name': name});
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'تعذّر إضافة المجموعة');
+      return;
+    }
+    if (!mounted) return;
+    AppSnackBar.success(context, 'تمت إضافة المجموعة');
     await _load();
   }
 
@@ -73,13 +82,21 @@ class _GroupsScreenState extends State<GroupsScreen> {
       initial: group.name,
     );
     if (name == null || name.isEmpty || name == group.name || !mounted) return;
-    final db = await context.read<AppProvider>().dbHelper.db;
-    await db.update(
-      AppConstants.tableGroups,
-      {'name': name},
-      where: 'ID = ?',
-      whereArgs: [group.id],
-    );
+    try {
+      final db = await context.read<AppProvider>().dbHelper.db;
+      await db.update(
+        AppConstants.tableGroups,
+        {'name': name},
+        where: 'ID = ?',
+        whereArgs: [group.id],
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'تعذّر تعديل اسم المجموعة');
+      return;
+    }
+    if (!mounted) return;
+    AppSnackBar.success(context, 'تم تعديل اسم المجموعة');
     await _load();
   }
 
@@ -108,19 +125,27 @@ class _GroupsScreenState extends State<GroupsScreen> {
       if (!confirm || !mounted) return;
     }
 
-    final db = await context.read<AppProvider>().dbHelper.db;
-    // إلغاء تعيين العملاء من المجموعة
-    await db.update(
-      AppConstants.tableCustomers,
-      {'g_id': null},
-      where: 'g_id = ?',
-      whereArgs: [group.id],
-    );
-    await db.delete(
-      AppConstants.tableGroups,
-      where: 'ID = ?',
-      whereArgs: [group.id],
-    );
+    try {
+      final db = await context.read<AppProvider>().dbHelper.db;
+      // إلغاء تعيين العملاء من المجموعة
+      await db.update(
+        AppConstants.tableCustomers,
+        {'g_id': null},
+        where: 'g_id = ?',
+        whereArgs: [group.id],
+      );
+      await db.delete(
+        AppConstants.tableGroups,
+        where: 'ID = ?',
+        whereArgs: [group.id],
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'تعذّر حذف المجموعة');
+      return;
+    }
+    if (!mounted) return;
+    AppSnackBar.success(context, 'تم حذف المجموعة');
     await _load();
   }
 

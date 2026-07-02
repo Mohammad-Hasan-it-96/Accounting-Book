@@ -20,7 +20,10 @@ class App extends StatefulWidget {
 }
 
 class _AppState extends State<App> with WidgetsBindingObserver {
-  DateTime? _pausedAt;
+  // مؤقّت أحادي الاتجاه لقياس مدّة بقاء التطبيق في الخلفية. نستخدم Stopwatch
+  // (ساعة رتيبة) بدل DateTime.now() حتى لا يستطيع تغيير ساعة الجهاز أو التوقيت
+  // الصيفي تجاوز القفل التلقائي (فرق سالب/ضخم مع الساعة الجدارية).
+  final Stopwatch _backgrounded = Stopwatch();
 
   @override
   void initState() {
@@ -37,11 +40,16 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     if (state == AppLifecycleState.paused) {
-      _pausedAt = DateTime.now();
-    } else if (state == AppLifecycleState.resumed && _pausedAt != null) {
+      _backgrounded
+        ..reset()
+        ..start();
+    } else if (state == AppLifecycleState.resumed && _backgrounded.isRunning) {
+      final elapsed = _backgrounded.elapsed.inSeconds;
+      _backgrounded
+        ..stop()
+        ..reset();
       final timeout = await SettingsService().getAutoLockTimeout();
       if (timeout <= 0) return;
-      final elapsed = DateTime.now().difference(_pausedAt!).inSeconds;
       if (elapsed < timeout) return;
       final pinEnabled = await PinService().isPinEnabled();
       if (!pinEnabled) return;

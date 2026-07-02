@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
@@ -623,6 +624,7 @@ class _QuickSearchResults extends StatefulWidget {
 class _QuickSearchResultsState extends State<_QuickSearchResults> {
   List<Customer> _results = [];
   bool _loading = false;
+  Timer? _debounce;
 
   @override
   void initState() {
@@ -633,10 +635,21 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
   @override
   void didUpdateWidget(_QuickSearchResults old) {
     super.didUpdateWidget(old);
-    if (old.query != widget.query) _search();
+    // ارتداد (~300ms) حتى لا نُطلق استعلام قاعدة بيانات مع كل ضغطة مفتاح.
+    if (old.query != widget.query) {
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 300), _search);
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
   }
 
   Future<void> _search() async {
+    if (!mounted) return;
     setState(() => _loading = true);
     try {
       final repo = CustomerRepository(widget.provider.dbHelper);

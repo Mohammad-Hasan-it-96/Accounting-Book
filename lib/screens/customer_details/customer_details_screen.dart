@@ -52,7 +52,27 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     return FormatHelper.parseDate(raw);
   }
 
+  // كل حركة مقرونة بتاريخها المُحلَّل مرّة واحدة عند التحميل — نتفادى إعادة
+  // تحليل التواريخ (DateFormat.parseStrict) في كل build.
+  List<({tx_model.Transaction tx, DateTime? date})> _processed = [];
+  // تخزين مؤقّت لنتيجة الفلترة/الترتيب مفهرَس بتوقيع حالة الفلاتر، حتى لا
+  // نُعيد الفلترة والترتيب في كل إعادة رسم (مثلاً عند فتح قائمة أو التمرير).
+  List<tx_model.Transaction>? _filteredCache;
+  String _filterSig = '';
+
   List<tx_model.Transaction> get _filteredTransactions {
+    final sig =
+        '${_fromDate?.millisecondsSinceEpoch}|${_toDate?.millisecondsSinceEpoch}'
+        '|$_txTypeFilter|${_processed.length}';
+    final cached = _filteredCache;
+    if (cached != null && sig == _filterSig) return cached;
+    final result = _computeFiltered();
+    _filteredCache = result;
+    _filterSig = sig;
+    return result;
+  }
+
+  List<tx_model.Transaction> _computeFiltered() {
     final from = _fromDate;
     final to = _toDate == null
         ? null
@@ -66,10 +86,8 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
             999,
           );
 
-    // كل حركة مقرونة بتاريخها المُحلَّل (أو null عند تعذّر التحليل)
-    final processed = <({tx_model.Transaction tx, DateTime? date})>[
-      for (final tx in _transactions) (tx: tx, date: _parseTxDate(tx.date)),
-    ];
+    // نستخدم التواريخ المُحلَّلة مسبقاً (_processed) بدل إعادة تحليلها هنا.
+    final processed = _processed;
 
     // فلتر التاريخ: بلا فلتر → ضمّ الكل؛ مع فلتر → تاريخ صالح ضمن المدى
     final bool hasActiveFilter = from != null || to != null;
@@ -266,6 +284,11 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       _balance = 0;
       _loadError = true;
     }
+    // حلّل تواريخ الحركات مرّة واحدة، وأبطِل الذاكرة المؤقّتة للفلترة.
+    _processed = [
+      for (final tx in _transactions) (tx: tx, date: _parseTxDate(tx.date)),
+    ];
+    _filteredCache = null;
     if (!mounted) return;
     setState(() => _loading = false);
   }
@@ -965,27 +988,33 @@ class _TransactionTile extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.sm),
             // ─── المبلغ (بارز) ───────────────────────────────────
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  FormatHelper.formatAmount(tx.out),
-                  style: TextStyle(
-                    color: color,
-                    fontSize: AppFontSize.title,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.3,
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    FormatHelper.formatAmount(tx.out),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: AppFontSize.title,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.3,
+                    ),
                   ),
-                ),
-                Text(
-                  currencyName,
-                  style: TextStyle(
-                    fontSize: AppFontSize.micro,
-                    color: Colors.grey.shade600,
+                  Text(
+                    currencyName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: AppFontSize.micro,
+                      color: Colors.grey.shade600,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             // ─── قائمة الإجراءات ─────────────────────────────────
             PopupMenuButton<String>(

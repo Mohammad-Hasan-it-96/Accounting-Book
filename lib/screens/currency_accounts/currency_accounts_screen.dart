@@ -93,6 +93,7 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
       _items = [];
       _loadError = true;
     }
+    _displayedCache = null; // أبطِل الذاكرة المؤقّتة بعد تحديث القائمة
     if (!mounted) return;
     setState(() => _loading = false);
   }
@@ -271,8 +272,23 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
     );
   }
 
+  // تخزين مؤقّت لنتيجة البحث/الترتيب/الأرشيف مفهرَس بتوقيع حالة الفلاتر،
+  // حتى لا نُعيد الفلترة والترتيب في كل إعادة رسم (كل ضغطة بحث تستدعي build).
+  List<_CustomerWithBalance>? _displayedCache;
+  String _displayedSig = '';
+
   /// بحث فوري + ترتيب + فلتر الأرشيف
   List<_CustomerWithBalance> get _displayed {
+    final sig = '${_searchCtrl.text}|$_sortBy|$_showArchived|${_items.length}';
+    final cached = _displayedCache;
+    if (cached != null && sig == _displayedSig) return cached;
+    final result = _computeDisplayed();
+    _displayedCache = result;
+    _displayedSig = sig;
+    return result;
+  }
+
+  List<_CustomerWithBalance> _computeDisplayed() {
     final q = _searchCtrl.text.toLowerCase();
     var list = _items.where((i) {
       // فلتر الأرشيف: إخفاء المؤرشفين إلا إذا طلب المستخدم إظهارهم
@@ -610,29 +626,36 @@ class _SummaryBar extends StatelessWidget {
         vertical: AppSpacing.sm,
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _StatItem(
-            label: 'العملاء',
-            value: '${items.length}',
-            icon: Icons.people,
+          Expanded(
+            child: _StatItem(
+              label: 'العملاء',
+              value: '${items.length}',
+              icon: Icons.people,
+            ),
           ),
-          _StatItem(
-            label: 'لديهم رصيد',
-            value: '$withBalance',
-            icon: Icons.account_balance_wallet,
+          Expanded(
+            child: _StatItem(
+              label: 'لديهم رصيد',
+              value: '$withBalance',
+              icon: Icons.account_balance_wallet,
+            ),
           ),
-          _StatItem(
-            label: 'دائن',
-            value: FormatHelper.formatAmount(totalCredit),
-            icon: Icons.arrow_downward,
-            color: AppColors.income,
+          Expanded(
+            child: _StatItem(
+              label: 'دائن',
+              value: FormatHelper.formatAmount(totalCredit),
+              icon: Icons.arrow_downward,
+              color: AppColors.income,
+            ),
           ),
-          _StatItem(
-            label: 'مدين',
-            value: FormatHelper.formatAmount(totalDebit),
-            icon: Icons.arrow_upward,
-            color: AppColors.expense,
+          Expanded(
+            child: _StatItem(
+              label: 'مدين',
+              value: FormatHelper.formatAmount(totalDebit),
+              icon: Icons.arrow_upward,
+              color: AppColors.expense,
+            ),
           ),
         ],
       ),
@@ -663,6 +686,9 @@ class _StatItem extends StatelessWidget {
         const SizedBox(height: AppSpacing.xxs),
         Text(
           value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: AppFontSize.body,
@@ -671,6 +697,9 @@ class _StatItem extends StatelessWidget {
         ),
         Text(
           label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: AppFontSize.micro,
             color: Colors.grey.shade600,
@@ -851,7 +880,10 @@ class _CustomerTile extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Column(
+            // حدّ أقصى للعرض حتى يقتطع الرصيد الكبير (…) بدل إحداث overflow
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 120),
+              child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -866,6 +898,8 @@ class _CustomerTile extends StatelessWidget {
                   ),
                   child: Text(
                     FormatHelper.formatAmount(balance),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: balanceColor,
                       fontWeight: FontWeight.bold,
@@ -876,6 +910,8 @@ class _CustomerTile extends StatelessWidget {
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
                   statusLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: balanceColor,
                     fontSize: AppFontSize.micro,
@@ -883,6 +919,7 @@ class _CustomerTile extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
             ),
             const SizedBox(width: AppSpacing.xxs),
             PopupMenuButton<String>(

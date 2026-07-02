@@ -54,8 +54,14 @@ android {
             } else {
                 null
             }
+            // التصغير/التعتيم مُعطَّل حالياً. عند تفعيله لاحقاً، قواعد الإبقاء
+            // في proguard-rules.pro جاهزة كي لا تنكسر الحزم المعتمدة على reflection.
             isMinifyEnabled = false
             isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
