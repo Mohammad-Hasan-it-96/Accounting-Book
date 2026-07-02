@@ -193,18 +193,24 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
 
     final dbHelper = context.read<AppProvider>().dbHelper;
     final repo = TransactionRepository(dbHelper);
-    await repo.insert(
-      tx_model.Transaction(
-        cusId: widget.customer.id!,
-        inFlag: isDebt ? -1 : 1,
-        out: amount,
-        date: DateTime.now().toIso8601String().substring(0, 10),
-        currId: widget.currency.id!,
-        remarks: remarksCtrl.text.trim().isEmpty
-            ? 'تسوية رصيد'
-            : remarksCtrl.text.trim(),
-      ),
-    );
+    try {
+      await repo.insert(
+        tx_model.Transaction(
+          cusId: widget.customer.id!,
+          inFlag: isDebt ? -1 : 1,
+          out: amount,
+          date: DateTime.now().toIso8601String().substring(0, 10),
+          currId: widget.currency.id!,
+          remarks: remarksCtrl.text.trim().isEmpty
+              ? 'تسوية رصيد'
+              : remarksCtrl.text.trim(),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'تعذر تسوية الرصيد');
+      return;
+    }
     _hasChanges = true;
     await _load();
   }

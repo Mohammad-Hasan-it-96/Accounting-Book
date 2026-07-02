@@ -95,9 +95,20 @@ class UpdateService {
 
   // ─── تطبيق الإعدادات من السيرفر ──────────────────────────────────────────
   Future<void> _applyRemoteSettings(UpdateInfo info) async {
-    if (info.apiBaseUrl != null && info.apiBaseUrl!.isNotEmpty) {
-      await SettingsService().setApiUrl(info.apiBaseUrl!);
+    final url = info.apiBaseUrl;
+    // نقبل تجاوز عنوان الـ API من السيرفر فقط إذا كان https ويعود لنفس مضيف
+    // العنوان الافتراضي — حتى لا يُعاد توجيه بيانات التفعيل (الاسم/الهاتف) إلى
+    // خادم غير موثوق أو عبر اتصال غير مشفّر.
+    if (url != null && url.isNotEmpty && _isAllowedApiUrl(url)) {
+      await SettingsService().setApiUrl(url);
     }
+  }
+
+  bool _isAllowedApiUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.isScheme('https') || uri.host.isEmpty) return false;
+    final allowedHost = Uri.parse(SettingsService.defaultApiUrl).host;
+    return uri.host == allowedHost;
   }
 
   // ─── مقارنة semver (major.minor.patch) ───────────────────────────────────

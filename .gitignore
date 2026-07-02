@@ -48,3 +48,6 @@ app.*.map.json
 android/key.properties
 android/release.jks
 *.jks
+
+# Android module build output
+/android/build/

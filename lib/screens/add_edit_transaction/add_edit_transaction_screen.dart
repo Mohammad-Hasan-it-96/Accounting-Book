@@ -164,10 +164,17 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
 
     final dbHelper = context.read<AppProvider>().dbHelper;
     final repo = TransactionRepository(dbHelper);
-    if (widget.transaction == null) {
-      await repo.insert(tx);
-    } else {
-      await repo.update(tx);
+    try {
+      if (widget.transaction == null) {
+        await repo.insert(tx);
+      } else {
+        await repo.update(tx);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      AppSnackBar.error(context, 'تعذر حفظ الحركة');
+      return;
     }
 
     if (!mounted) return;
@@ -193,7 +200,14 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
     HapticFeedback.heavyImpact();
     setState(() => _saving = true);
     final dbHelper = context.read<AppProvider>().dbHelper;
-    await TransactionRepository(dbHelper).delete(txId);
+    try {
+      await TransactionRepository(dbHelper).delete(txId);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      AppSnackBar.error(context, 'تعذر حذف الحركة');
+      return;
+    }
     if (mounted) Navigator.pop(context, true);
   }
 

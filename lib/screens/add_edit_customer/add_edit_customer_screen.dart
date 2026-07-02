@@ -160,14 +160,21 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       isArchived: _isArchived,
     );
 
-    if (widget.customer == null) {
-      final newId = await repo.insert(customer);
+    try {
+      if (widget.customer == null) {
+        final newId = await repo.insert(customer);
+        if (!mounted) return;
+        HapticFeedback.mediumImpact();
+        Navigator.pop(context, customer.copyWith(id: newId));
+        return;
+      } else {
+        await repo.update(customer);
+      }
+    } catch (_) {
       if (!mounted) return;
-      HapticFeedback.mediumImpact();
-      Navigator.pop(context, customer.copyWith(id: newId));
+      setState(() => _saving = false);
+      AppSnackBar.error(context, 'تعذر حفظ العميل');
       return;
-    } else {
-      await repo.update(customer);
     }
 
     if (!mounted) return;

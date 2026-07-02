@@ -48,14 +48,34 @@ android {
 
     buildTypes {
         release {
+            // نستخدم مفتاح الإصدار فقط. لا نوقّع الإصدار بمفتاح التصحيح إطلاقاً.
             signingConfig = if (keyPropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
-                signingConfigs.getByName("debug")
+                null
             }
             isMinifyEnabled = false
             isShrinkResources = false
         }
+    }
+}
+
+// أوقِف بناء الإصدار بوضوح إذا لم يكن مفتاح التوقيع مُهيّأً، بدل توقيعه صامتاً
+// بمفتاح التصحيح (وهو ما يرفضه Google Play). بناء التصحيح لا يتأثر.
+if (!keyPropertiesFile.exists()) {
+    val buildingRelease = gradle.startParameter.taskNames.any { requested ->
+        val name = requested.substringAfterLast(':')
+        name.contains("Release", ignoreCase = true) &&
+            (name.startsWith("assemble") ||
+                name.startsWith("bundle") ||
+                name.startsWith("package"))
+    }
+    if (buildingRelease) {
+        throw GradleException(
+            "التوقيع للإصدار غير مُهيّأ. أنشئ ملف android/key.properties " +
+                "(keyAlias/keyPassword/storeFile/storePassword) قبل بناء نسخة الإصدار. " +
+                "تم رفض توقيع الإصدار بمفتاح التصحيح."
+        )
     }
 }
 

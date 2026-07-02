@@ -71,7 +71,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.themeMode,
-          supportedLocales: const [Locale('ar'), Locale('en')],
+          // التطبيق عربي بالكامل: نثبّت اللغة على العربية حتى لا تُعرَض الواجهة
+          // بترتيب LTR على الأجهزة غير العربية (يقلب التخطيط ويكسر اتجاه الأيقونات).
+          locale: const Locale('ar'),
+          supportedLocales: const [Locale('ar')],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
