@@ -29,7 +29,8 @@ lib/
 ├── app.dart                    # Root widget, MultiProvider setup
 ├── core/
 │   ├── constants/              # DB table names, currency mappings
-│   ├── helpers/                # FormatHelper, StatementHelper, CustomerHelper
+│   ├── helpers/                # FormatHelper, StatementHelper, CustomerHelper,
+│   │                           #   FormValidators, UrlHelper
 │   ├── services/               # ActivationService, SettingsService, UpdateService,
 │   │                           #   PinService, CrashService, PdfService, BackupSchedulerService
 │   ├── theme/app_theme.dart    # Material3 light/dark themes
@@ -119,6 +120,10 @@ All "failed to load" UI goes through one widget — do not hand-roll error rows/
 - `core/widgets/app_error_state.dart` — `AppErrorState(icon:, title:, message:, onRetry:, retryLabel:)` renders a centered full-area error placeholder: a soft-red icon (`Icons.error_outline` 64 by default), a bold grey title, an optional `message`, and an optional «إعادة المحاولة» retry button (shown only when `onRetry` is given). `AppErrorState.inline(title:, onRetry:)` renders a slim orange `warning_amber_rounded` banner for a non-blocking error inside a page that still works (e.g. the home currencies-load hint).
 - Screens that load data in a `_load()`/`try`/`catch` set a local `_loadError` flag in the existing catch block and render `AppErrorState(onRetry: _load)` ahead of the empty-state branch (`_loading → _loadError → empty → list`). This is view-state only — repositories, DB access, and domain calculations are untouched; retry just re-invokes the existing loader.
 - Transient/one-off failures still use `AppSnackBar.error(...)`; `AppErrorState` is for persistent "this section couldn't load" placeholders.
+
+### External Links (Standardized)
+All external-URL opening goes through one helper — do not hand-roll `launchUrl(...)` in screens:
+- `core/helpers/url_helper.dart` — `UrlHelper.open(context, url, {errorMessage})` parses the URL, launches it with `LaunchMode.externalApplication`, and on failure shows `AppSnackBar.error(...)` (default message «تعذر فتح الرابط»; pass `errorMessage` for a context-specific one). Used for `wa.me`/telegram/`mailto:` contact links and the APK update link.
 
 ### Localization
 Arabic-first RTL layout. Uses `flutter_localizations` + `intl`. Comments throughout the codebase are in Arabic. `app.dart` caps `textScaler` at 1.3 (upper bound only, no lower bound) to prevent layout breakage at large system font sizes. Do not add a lower bound (e.g. `minScaleFactor: 1.0`) — a positive minimum collides with Flutter's internal re-clamping (e.g. the date-picker header clamping to `1.0` when the device font scale is ≤ 1.0), tripping the `maxScale > minScale` assertion in `_ClampedTextScaler` and crashing the route.
