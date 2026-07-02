@@ -4,9 +4,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/helpers/url_helper.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/backup_scheduler_service.dart';
 import '../../core/services/pin_service.dart';
@@ -361,12 +361,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ─── فتح رابط خارجي ───────────────────────────────────────────────────────
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) AppSnackBar.error(context, 'تعذر فتح الرابط');
-    }
-  }
+  Future<void> _openUrl(String url) => UrlHelper.open(context, url);
 
   // ─── نسخ Device ID ────────────────────────────────────────────────────────
   void _copyDeviceId() {

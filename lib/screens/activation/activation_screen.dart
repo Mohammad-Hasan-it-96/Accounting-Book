@@ -1,6 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../../core/helpers/url_helper.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -335,14 +335,6 @@ class _DeviceIdCard extends StatelessWidget {
 // ─── أزرار التواصل ────────────────────────────────────────────────────────────
 class _ContactRow extends StatelessWidget {
   const _ContactRow();
-  Future<void> _open(BuildContext ctx, String url) async {
-    final uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (ctx.mounted) {
-        AppSnackBar.error(ctx, 'تعذر فتح الرابط');
-      }
-    }
-  }
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -353,7 +345,7 @@ class _ContactRow extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () => _open(context,
+            onPressed: () => UrlHelper.open(context,
                 'https://wa.me/${SettingsService.supportWhatsApp}?text=${Uri.encodeComponent("مرحباً، أريد تفعيل دفتر الحسابات")}'),
             icon: const Icon(Icons.chat, size: AppIconSize.sm,
                 color: AppColors.whatsApp),

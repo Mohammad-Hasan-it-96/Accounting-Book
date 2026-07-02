@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../helpers/url_helper.dart';
 import '../services/update_service.dart';
 import '../theme/app_dimens.dart';
 import '../theme/app_text_styles.dart';
-import 'app_snackbar.dart';
 
 /// يعرض Dialog بتفاصيل التحديث المتاح.
 /// إذا كان [info.forceUpdate] == true لا يمكن إغلاق الـ Dialog.
@@ -23,12 +22,8 @@ class UpdateDialog extends StatelessWidget {
 
   Future<void> _openApk(BuildContext ctx) async {
     if (info.apkUrl.isEmpty) return;
-    final uri = Uri.parse(info.apkUrl);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (ctx.mounted) {
-        AppSnackBar.error(ctx, 'تعذر فتح رابط التحديث');
-      }
-    }
+    await UrlHelper.open(ctx, info.apkUrl,
+        errorMessage: 'تعذر فتح رابط التحديث');
   }
 
   @override
