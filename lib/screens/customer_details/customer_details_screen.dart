@@ -46,6 +46,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
   DateTime? _toDate;
   bool _hasChanges = false;
   int _txTypeFilter = 0; // 0=الكل، 1=مطلوب فقط، -1=مدفوع فقط
+  bool _openingEditor = false; // حارس ضد فتح محرّرين بنقرة مزدوجة سريعة
 
   DateTime? _parseTxDate(String? raw) {
     if (raw == null || raw.isEmpty) return null;
@@ -59,6 +60,10 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
   // نُعيد الفلترة والترتيب في كل إعادة رسم (مثلاً عند فتح قائمة أو التمرير).
   List<tx_model.Transaction>? _filteredCache;
   String _filterSig = '';
+  // الرصيد التراكمي المطلق (من الأقدم للأحدث) لكل حركة بمعرّفها، محسوب على
+  // *كامل* مجموعة الحركات لا المجموعة المفلترة — حتى يتطابق «الرصيد بعدها» مع
+  // الرصيد الإجمالي في الترويسة حتى عند تفعيل فلتر تاريخ/نوع.
+  final Map<int, double> _absoluteRunning = {};
 
   List<tx_model.Transaction> get _filteredTransactions {
     final sig =
@@ -70,6 +75,33 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     _filteredCache = result;
     _filterSig = sig;
     return result;
+  }
+
+  // يحسب الرصيد التراكمي المطلق لكل حركة (بالترتيب الزمني تصاعدياً) على كامل
+  // الحركات. الحركات بلا تاريخ تُعتبر الأقدم؛ التعادل يُكسر بمعرّف الحركة.
+  void _computeAbsoluteRunning() {
+    _absoluteRunning.clear();
+    final ordered = List<({tx_model.Transaction tx, DateTime? date})>.from(
+      _processed,
+    )..sort((a, b) {
+        final da = a.date;
+        final db = b.date;
+        if (da != null && db != null) {
+          final c = da.compareTo(db);
+          if (c != 0) return c;
+        } else if (da == null && db != null) {
+          return -1; // بلا تاريخ = الأقدم
+        } else if (da != null && db == null) {
+          return 1;
+        }
+        return (a.tx.id ?? 0).compareTo(b.tx.id ?? 0);
+      });
+    double running = 0;
+    for (final item in ordered) {
+      running += item.tx.inFlag == 1 ? item.tx.out : -item.tx.out;
+      final id = item.tx.id;
+      if (id != null) _absoluteRunning[id] = running;
+    }
   }
 
   List<tx_model.Transaction> _computeFiltered() {
@@ -289,6 +321,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       for (final tx in _transactions) (tx: tx, date: _parseTxDate(tx.date)),
     ];
     _filteredCache = null;
+    _computeAbsoluteRunning();
     if (!mounted) return;
     setState(() => _loading = false);
   }
@@ -559,26 +592,16 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                         ? _buildEmptyTransactions()
                         : RefreshIndicator(
                             onRefresh: _load,
-                            child: Builder(
-                              builder: (context) {
-                                // حساب الرصيد الجاري (من الأقدم إلى الأحدث)
-                                final reversed = visibleTransactions.reversed
-                                    .toList();
-                                double running = 0;
-                                final runningBalances = reversed.map((tx) {
-                                  running += tx.inFlag == 1 ? tx.out : -tx.out;
-                                  return running;
-                                }).toList();
-                                final balancesForDisplay = runningBalances
-                                    .reversed
-                                    .toList();
-
-                                return ListView.builder(
+                            child: ListView.builder(
                                   itemCount: visibleTransactions.length,
                                   itemBuilder: (_, i) => _TransactionTile(
                                     tx: visibleTransactions[i],
                                     currencyName: widget.currency.displayName,
-                                    runningBalance: balancesForDisplay[i],
+                                    // رصيد مطلق محسوب على كامل الحركات (يتطابق
+                                    // مع الترويسة ولا يتأثر بالفلترة).
+                                    runningBalance:
+                                        _absoluteRunning[visibleTransactions[i].id] ??
+                                            0,
                                     onEdit: () async {
                                       final changed =
                                           await Navigator.push<bool>(
@@ -602,9 +625,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                                       visibleTransactions[i],
                                     ),
                                   ),
-                                );
-                              },
-                            ),
+                                ),
                           ),
                   ),
                 ],
@@ -613,18 +634,24 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
           backgroundColor: Theme.of(context).primaryColor,
           tooltip: 'إضافة حركة',
           onPressed: () async {
-            final changed = await Navigator.push<bool>(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AddEditTransactionScreen(
-                  customer: widget.customer,
-                  currency: widget.currency,
+            if (_openingEditor) return;
+            _openingEditor = true;
+            try {
+              final changed = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddEditTransactionScreen(
+                    customer: widget.customer,
+                    currency: widget.currency,
+                  ),
                 ),
-              ),
-            );
-            if (changed == true) {
-              _hasChanges = true;
-              await _load();
+              );
+              if (changed == true) {
+                _hasChanges = true;
+                await _load();
+              }
+            } finally {
+              _openingEditor = false;
             }
           },
           child: const Icon(Icons.add, size: AppIconSize.xl),

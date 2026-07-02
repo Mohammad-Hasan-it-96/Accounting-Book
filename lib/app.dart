@@ -24,6 +24,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   // (ساعة رتيبة) بدل DateTime.now() حتى لا يستطيع تغيير ساعة الجهاز أو التوقيت
   // الصيفي تجاوز القفل التلقائي (فرق سالب/ضخم مع الساعة الجدارية).
   final Stopwatch _backgrounded = Stopwatch();
+  bool _lockShown = false; // منع تكديس عدة شاشات قفل عند تعاقب خلفية/مقدّمة سريع
 
   @override
   void initState() {
@@ -53,14 +54,18 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       if (elapsed < timeout) return;
       final pinEnabled = await PinService().isPinEnabled();
       if (!pinEnabled) return;
+      if (_lockShown) return; // شاشة قفل معروضة مسبقاً
       final nav = _navigatorKey.currentState;
       if (nav == null) return;
-      nav.push(
-        PageRouteBuilder(
-          pageBuilder: (_, _, _) => const LockScreen(),
-          transitionDuration: Duration.zero,
-        ),
-      );
+      _lockShown = true;
+      nav
+          .push(
+            PageRouteBuilder(
+              pageBuilder: (_, _, _) => const LockScreen(),
+              transitionDuration: Duration.zero,
+            ),
+          )
+          .whenComplete(() => _lockShown = false);
     }
   }
 

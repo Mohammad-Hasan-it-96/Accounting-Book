@@ -320,6 +320,7 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
   @override
   Widget build(BuildContext context) {
     final displayed = _displayed;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
@@ -411,7 +412,9 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
               _items.length >= AppConstants.trialWarningThreshold &&
               _items.length < AppConstants.trialCustomerLimit)
             Container(
-              color: Colors.orange.shade50,
+              color: isDark
+                  ? Colors.orange.shade900.withValues(alpha: 0.22)
+                  : Colors.orange.shade50,
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.md,
                 vertical: AppSpacing.sm,
@@ -420,7 +423,8 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
                 children: [
                   Icon(
                     Icons.warning_amber_rounded,
-                    color: Colors.orange.shade800,
+                    color:
+                        isDark ? Colors.orange.shade300 : Colors.orange.shade800,
                     size: AppIconSize.md,
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -429,13 +433,17 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
                       'اقتربت من الحد المجاني: ${_items.length} / ${AppConstants.trialCustomerLimit} عميل',
                       style: TextStyle(
                         fontSize: AppFontSize.small,
-                        color: Colors.orange.shade900,
+                        color: isDark
+                            ? Colors.orange.shade100
+                            : Colors.orange.shade900,
                       ),
                     ),
                   ),
                   TextButton(
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.orange.shade900,
+                      foregroundColor: isDark
+                          ? Colors.orange.shade200
+                          : Colors.orange.shade900,
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.sm,
                       ),

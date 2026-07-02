@@ -17,14 +17,24 @@ void main() {
             context: 'FlutterError');
       };
 
-      await Workmanager().initialize(callbackDispatcher);
-
-      // Re-register periodic task if previously enabled
-      final autoBackupOn = await BackupSchedulerService.isEnabled();
-      if (autoBackupOn) await BackupSchedulerService.enable();
-
       runApp(const App());
+
+      // تهيئة غير حرجة بعد الإقلاع حتى لا نؤخّر أول إطار: WorkManager يحتاج فقط
+      // إلى التسجيل مرّة، والمهمة الدورية تبقى مسجّلة عبر التشغيلات.
+      unawaited(_initBackgroundServices());
     },
     (error, stack) => CrashService.recordError(error, stack),
   );
+}
+
+Future<void> _initBackgroundServices() async {
+  try {
+    await Workmanager().initialize(callbackDispatcher);
+    // إعادة تسجيل المهمة الدورية إن كانت مفعّلة سابقاً (registerPeriodicTask
+    // بوضع replace فيدمبوتنت — آمن التكرار).
+    final autoBackupOn = await BackupSchedulerService.isEnabled();
+    if (autoBackupOn) await BackupSchedulerService.enable();
+  } catch (e, s) {
+    await CrashService.recordError(e, s, context: 'initBackgroundServices');
+  }
 }

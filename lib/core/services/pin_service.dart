@@ -73,12 +73,15 @@ class PinService {
   Future<void> recordFailedAttempt() async {
     final current = await getFailedAttempts();
     final next = current + 1;
+    await _storage.write(key: _keyFailedAttempts, value: next.toString());
+    // لا نُصفّر العدّاد عند القفل: يبقى ≥ الحد، فبعد انتهاء مهلة القفل تؤدّي أول
+    // محاولة فاشلة إلى قفل فوري مجدّداً بدل منح 5 محاولات كل نافذة إلى ما لا
+    // نهاية. يُصفَّر العدّاد فقط عند فتح ناجح (clearFailedAttempts).
     if (next >= maxFailedAttempts) {
-      final until = DateTime.now().add(const Duration(minutes: lockoutDurationMinutes));
-      await _storage.write(key: _keyLockedUntil, value: until.millisecondsSinceEpoch.toString());
-      await _storage.write(key: _keyFailedAttempts, value: '0');
-    } else {
-      await _storage.write(key: _keyFailedAttempts, value: next.toString());
+      final until =
+          DateTime.now().add(const Duration(minutes: lockoutDurationMinutes));
+      await _storage.write(
+          key: _keyLockedUntil, value: until.millisecondsSinceEpoch.toString());
     }
   }
 

@@ -21,6 +21,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
   List<_GroupItem> _groups = [];
   bool _loading = true;
   bool _loadError = false;
+  bool _adding = false; // حارس ضد فتح حواري إضافة متعدد بنقرة مزدوجة
 
   @override
   void initState() {
@@ -60,19 +61,25 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
   // ─── إضافة مجموعة ────────────────────────────────────────────────────────
   Future<void> _addGroup() async {
-    final name = await _nameDialog(title: 'مجموعة جديدة');
-    if (name == null || name.isEmpty || !mounted) return;
+    if (_adding) return;
+    _adding = true;
     try {
-      final db = await context.read<AppProvider>().dbHelper.db;
-      await db.insert(AppConstants.tableGroups, {'name': name});
-    } catch (_) {
+      final name = await _nameDialog(title: 'مجموعة جديدة');
+      if (name == null || name.isEmpty || !mounted) return;
+      try {
+        final db = await context.read<AppProvider>().dbHelper.db;
+        await db.insert(AppConstants.tableGroups, {'name': name});
+      } catch (_) {
+        if (!mounted) return;
+        AppSnackBar.error(context, 'تعذّر إضافة المجموعة');
+        return;
+      }
       if (!mounted) return;
-      AppSnackBar.error(context, 'تعذّر إضافة المجموعة');
-      return;
+      AppSnackBar.success(context, 'تمت إضافة المجموعة');
+      await _load();
+    } finally {
+      _adding = false;
     }
-    if (!mounted) return;
-    AppSnackBar.success(context, 'تمت إضافة المجموعة');
-    await _load();
   }
 
   // ─── تعديل اسم المجموعة ──────────────────────────────────────────────────

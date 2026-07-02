@@ -232,25 +232,28 @@ class _BannerWidget extends StatelessWidget {
   const _BannerWidget({required this.banner});
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color bg;
     final Color border;
     final Color fg;
     final IconData icon;
+    // في الوضع الداكن نستخدم خلفية داكنة شفّافة ونصاً/حداً فاتحاً بدل الدرجات
+    // الفاتحة (shade50) التي تبدو ساطعة وغير متناسقة على الخلفية الداكنة.
     switch (banner.type) {
       case _BannerType.success:
-        bg     = Colors.green.shade50;
-        border = Colors.green.shade400;
-        fg     = Colors.green.shade900;
+        bg     = isDark ? Colors.green.shade900.withValues(alpha: 0.25) : Colors.green.shade50;
+        border = isDark ? Colors.green.shade700 : Colors.green.shade400;
+        fg     = isDark ? Colors.green.shade100 : Colors.green.shade900;
         icon   = Icons.check_circle_outline;
       case _BannerType.pending:
-        bg     = Colors.orange.shade50;
-        border = Colors.orange.shade400;
-        fg     = Colors.orange.shade900;
+        bg     = isDark ? Colors.orange.shade900.withValues(alpha: 0.25) : Colors.orange.shade50;
+        border = isDark ? Colors.orange.shade700 : Colors.orange.shade400;
+        fg     = isDark ? Colors.orange.shade100 : Colors.orange.shade900;
         icon   = Icons.hourglass_top_outlined;
       case _BannerType.error:
-        bg     = Colors.red.shade50;
-        border = Colors.red.shade400;
-        fg     = Colors.red.shade900;
+        bg     = isDark ? Colors.red.shade900.withValues(alpha: 0.25) : Colors.red.shade50;
+        border = isDark ? Colors.red.shade700 : Colors.red.shade400;
+        fg     = isDark ? Colors.red.shade100 : Colors.red.shade900;
         icon   = Icons.error_outline;
     }
     return Container(

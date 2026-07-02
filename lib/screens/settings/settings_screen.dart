@@ -182,6 +182,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     final ctrl = TextEditingController();
     final confirmCtrl = TextEditingController();
+    try {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -191,10 +192,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             AppTextField(
               controller: ctrl,
-              label: 'رمز PIN (4 أرقام)',
+              label: 'رمز PIN (4 أو 6 أرقام)',
               icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
-              maxLength: 4,
+              maxLength: 6,
               obscureText: true,
             ),
             Gap.h8,
@@ -203,7 +204,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               label: 'تأكيد الرمز',
               icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
-              maxLength: 4,
+              maxLength: 6,
               obscureText: true,
             ),
           ],
@@ -214,8 +215,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: const Text('إلغاء')),
           FilledButton(
             onPressed: () {
-              if (ctrl.text.length < 4) {
-                AppSnackBar.warning(ctx, 'أدخل 4 أرقام على الأقل');
+              // شاشة القفل تُرسل تلقائياً عند 4 أو 6 أرقام فقط؛ نمنع طولاً آخر
+              // (مثل 5) حتى لا يعلق المستخدم بلا زر إرسال.
+              if (ctrl.text.length != 4 && ctrl.text.length != 6) {
+                AppSnackBar.warning(ctx, 'أدخل 4 أو 6 أرقام');
                 return;
               }
               if (ctrl.text != confirmCtrl.text) {
@@ -235,6 +238,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() => _pinEnabled = true);
       AppSnackBar.success(context, 'تم تفعيل قفل PIN بنجاح');
     }
+    } finally {
+      ctrl.dispose();
+      confirmCtrl.dispose();
+    }
   }
 
   // ─── تغيير رمز PIN ────────────────────────────────────────────────────────
@@ -243,6 +250,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final newCtrl     = TextEditingController();
     final confirmCtrl = TextEditingController();
 
+    try {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -261,7 +269,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Gap.h8,
             AppTextField(
               controller: newCtrl,
-              label: 'الرمز الجديد (4 أرقام)',
+              label: 'الرمز الجديد (4 أو 6 أرقام)',
               icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
               maxLength: 6,
@@ -291,9 +299,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
                 return;
               }
-              if (newCtrl.text.length < 4) {
+              if (newCtrl.text.length != 4 && newCtrl.text.length != 6) {
                 if (ctx.mounted) {
-                  AppSnackBar.warning(ctx, 'أدخل 4 أرقام على الأقل');
+                  AppSnackBar.warning(ctx, 'أدخل 4 أو 6 أرقام');
                 }
                 return;
               }
@@ -313,6 +321,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (result != true || !mounted) return;
     await PinService().changePin(newCtrl.text.trim());
     if (mounted) AppSnackBar.success(context, 'تم تغيير رمز PIN بنجاح');
+    } finally {
+      currentCtrl.dispose();
+      newCtrl.dispose();
+      confirmCtrl.dispose();
+    }
   }
 
   // ─── إعداد مهلة القفل التلقائي ───────────────────────────────────────────
@@ -395,6 +408,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final primary       = Theme.of(context).colorScheme.primary;
+    final isDark        = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات')),
@@ -494,14 +508,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                      padding: const EdgeInsets.symmetric(
                          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                      decoration: BoxDecoration(
-                       color: Colors.orange.shade50,
-                       border: Border.all(color: Colors.orange.shade200),
+                       color: isDark
+                           ? Colors.orange.shade900.withValues(alpha: 0.22)
+                           : Colors.orange.shade50,
+                       border: Border.all(
+                           color: isDark
+                               ? Colors.orange.shade700
+                               : Colors.orange.shade200),
                        borderRadius: AppRadius.smAll,
                      ),
                      child: Row(
                        children: [
                          Icon(Icons.warning_amber_rounded,
-                             color: Colors.orange.shade700, size: AppIconSize.md),
+                             color: isDark
+                                 ? Colors.orange.shade300
+                                 : Colors.orange.shade700,
+                             size: AppIconSize.md),
                          const SizedBox(width: AppSpacing.sm),
                          Expanded(
                            child: Text(
@@ -509,7 +531,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                  ? 'لم تُؤخذ نسخة احتياطية بعد. احرص على حماية بياناتك!'
                                  : 'آخر نسخة احتياطية منذ ${DateTime.now().difference(_lastBackupDate!).inDays} يوم. يُنصح بأخذ نسخة.',
                              style: TextStyle(
-                                 fontSize: AppFontSize.small, color: Colors.orange.shade900),
+                                 fontSize: AppFontSize.small,
+                                 color: isDark
+                                     ? Colors.orange.shade100
+                                     : Colors.orange.shade900),
                            ),
                          ),
                        ],

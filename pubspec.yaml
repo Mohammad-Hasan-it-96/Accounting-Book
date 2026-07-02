@@ -88,7 +88,7 @@ flutter:
 
 # App icon — place a 1024x1024 PNG at assets/icon/app_icon.png then run:
 # dart run flutter_launcher_icons
-flutter_icons:
+flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icon/app_icon.png"

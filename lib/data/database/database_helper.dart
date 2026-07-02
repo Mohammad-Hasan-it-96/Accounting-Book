@@ -225,6 +225,11 @@ class DatabaseHelper {
   }
 
   // ─── تصدير نسخة احتياطية ─────────────────────────────────────────────────
+  // ملاحظة: الوجهة هي تخزين خاص بالتطبيق
+  // (getExternalStorageDirectory → /Android/data/<pkg>/files، أو مجلّد
+  // المستندات). هذه النسخ تُحذف عند إزالة تثبيت التطبيق ولا تظهر للمستخدم في
+  // مدير الملفات. للاحتفاظ الدائم يجب على المستخدم استخدام «مشاركة/تصدير» يدوياً
+  // لحفظ الملف في موقع يختاره.
   Future<String?> exportDatabase(String fileName) async {
     try {
       final dbPath = await getDatabasesPath();
