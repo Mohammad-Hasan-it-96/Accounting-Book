@@ -168,6 +168,20 @@ schedule Medium for the first patch; Low as backlog.
   janks on low-end phones. (The accounts overview is fine — it uses one aggregated row per customer.)
 - **Recommendation:** Paginate with `LIMIT/OFFSET` or keyset paging on `(date_, ID)`; keep the
   SQL-side `getBalance` for the header total (already done).
+- **Resolution — Mitigated (full pagination declined by design):**
+  - **M4** added the composite index `idx_tx_cus_curr(cus_id, curr_id)`, so the per-customer query is
+    index-backed and fast.
+  - **M5** parses each transaction's date once at load and memoizes the filtered/sorted list, so the
+    recurring per-rebuild jank (the concrete symptom) is gone — work is O(load), not O(frame).
+  - **L5** moved the per-row running balance to an **absolute** value keyed by `tx.id`
+    (`_absoluteRunning`), computed over the full ordered set and independent of the active filter —
+    which was the correctness reason pagination was unsafe.
+  - Full keyset pagination was **declined**: three features legitimately require the entire set anyway
+    — the absolute running-balance map, `_buildStatement()`/`_exportPdf()`, and `_calculateSummary` —
+    so pagination could only shrink display-object memory, which is negligible at this app's realistic
+    scale (a single customer holds tens–hundreds of transactions; even a pathological 10k ≈ ~2 MB and
+    a one-time ~30–50 ms parse). The added scroll-state/SQL-filter/load-more complexity on a
+    balance-critical financial screen is disproportionate to that win.
 
 ### M4 — Missing composite index; imported legacy DBs get no indexes
 - **Description:** Only single-column indexes exist (`database_helper.dart:94-103`). The hottest
