@@ -1,18 +1,29 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 /// خدمة الإبلاغ عن الأعطال.
 ///
-/// حالياً تكتب الأعطال في ملف محلّي على الجهاز (يعمل حتى في نسخة الإصدار)
-/// ليكون هناك أثر يمكن مشاركته للتشخيص، بدل فقدان الأعطال تماماً.
+/// طبقتان:
+/// 1. **سجل محلّي** على الجهاز (`crash_log.txt`) — يعمل دائماً حتى في الإصدار،
+///    ويبقى أثراً يمكن مشاركته للتشخيص. هذا هو السلوك الافتراضي بلا أي إعداد.
+/// 2. **Sentry (إبلاغ عن بُعد)** — يُهيَّأ *فقط* عند تمرير DSN وقت البناء:
+///    ```
+///    flutter build appbundle --release --dart-define=SENTRY_DSN=https://...
+///    ```
+///    بلا DSN تبقى الطبقة الأولى فقط (لا يُرسَل أي شيء عن بُعد).
 ///
-/// لتفعيل الإبلاغ عن بُعد (موصى به قبل النشر):
-/// 1. أضف `sentry_flutter: ^9.0.0` إلى pubspec.yaml
-/// 2. استبدل هذا الملف بتنفيذ Sentry باستخدام DSN مشروعك
-/// 3. أبقِ على تغليف runApp بـ runZonedGuarded وتسجيل FlutterError.onError
+/// كلا المسارين (FlutterError.onError و runZonedGuarded في main.dart) يمرّان عبر
+/// [recordError]، فيُرسَل العطل إلى Sentry مرّة واحدة من مكان واحد. نُهيّئ Sentry
+/// بلا appRunner ونُبقي FlutterError.onError الخاص بنا (يُضبط في main بعد
+/// initialize) هو المعالج الوحيد، تفادياً للالتقاط المزدوج.
 class CrashService {
   static File? _logFile;
+  static bool _sentryEnabled = false;
+
+  /// DSN يُمرَّر وقت البناء عبر --dart-define (لا يُخزَّن في المستودع).
+  static const String _dsn = String.fromEnvironment('SENTRY_DSN');
 
   /// أقصى حجم لملف السجل قبل تقليمه (256 كيلوبايت).
   static const int _maxLogBytes = 256 * 1024;
@@ -24,6 +35,26 @@ class CrashService {
     } catch (_) {
       _logFile = null;
     }
+    await _initSentry();
+  }
+
+  static Future<void> _initSentry() async {
+    if (_dsn.isEmpty) return; // بلا DSN: إبلاغ محلّي فقط.
+    try {
+      await SentryFlutter.init((options) {
+        options.dsn = _dsn;
+        options.debug = kDebugMode;
+        options.environment = kReleaseMode ? 'production' : 'development';
+        // معدّل عيّنات تتبّع الأداء (0.0–1.0). اضبطه حسب الحاجة/الميزانية.
+        options.tracesSampleRate = 0.2;
+        // نلتقط الأخطاء يدوياً عبر recordError؛ لا نستخدم appRunner كي لا يُنشئ
+        // Sentry منطقته الخاصة أو يلتقط الأخطاء مرّتين.
+      });
+      _sentryEnabled = true;
+    } catch (_) {
+      // فشل تهيئة Sentry (DSN غير صالح مثلاً) لا يجب أن يمنع إقلاع التطبيق.
+      _sentryEnabled = false;
+    }
   }
 
   static Future<void> recordError(Object exception, StackTrace? stack,
@@ -33,6 +64,23 @@ class CrashService {
       if (stack != null) debugPrint(stack.toString());
     }
     await _appendToLog(exception, stack, context);
+    await _sendToSentry(exception, stack, context);
+  }
+
+  static Future<void> _sendToSentry(
+      Object exception, StackTrace? stack, String? context) async {
+    if (!_sentryEnabled) return;
+    try {
+      await Sentry.captureException(
+        exception,
+        stackTrace: stack,
+        withScope: (scope) {
+          if (context != null) scope.setTag('origin', context);
+        },
+      );
+    } catch (_) {
+      // لا نُسقط التطبيق بسبب فشل الإرسال؛ يبقى السجل المحلّي أثراً.
+    }
   }
 
   static Future<void> _appendToLog(

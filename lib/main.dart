@@ -12,6 +12,9 @@ void main() {
 
       await CrashService.initialize();
 
+      // مهم: نضبط معالجنا *بعد* initialize (التي قد تُهيّئ Sentry) كي يكون هو
+      // المعالج الوحيد ويُلغي تكامل Sentry التلقائي — فلا يُلتقط العطل مرّتين.
+      // كل الأعطال (framework + async) تمرّ عبر recordError الذي يُرسل لـ Sentry.
       FlutterError.onError = (details) {
         CrashService.recordError(details.exception, details.stack,
             context: 'FlutterError');

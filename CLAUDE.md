@@ -21,7 +21,7 @@ flutter test             # Run tests
 ### Entry Flow
 `main.dart` → `app.dart` (MultiProvider root) → `SplashScreen` → checks activation via `ActivationService` → `ActivationScreen` or `HomeScreen`
 
-`main.dart` wraps startup in `runZonedGuarded`, initializes `CrashService`, wires `FlutterError.onError`, initializes WorkManager (`callbackDispatcher`), and re-registers the periodic auto-backup task if it was previously enabled — all before `runApp`.
+`main.dart` wraps startup in `runZonedGuarded`, initializes `CrashService`, then wires `FlutterError.onError` — all before `runApp`. WorkManager init (`callbackDispatcher`) and re-registering the periodic auto-backup task are deferred to a fire-and-forget `_initBackgroundServices()` **after** `runApp` (to cut first-frame latency). `FlutterError.onError` is set **after** `CrashService.initialize()` on purpose, so it overrides Sentry's auto error integration and each crash is reported exactly once via `recordError`.
 
 ### Directory Layout
 ```
@@ -70,7 +70,9 @@ Provider (v6.1.5). Only two providers exist at the global level: `AppProvider` (
 - `callbackDispatcher` is a top-level `@pragma('vm:entry-point')` function that runs `DatabaseHelper().autoBackup()` in the background. Registering/initializing WorkManager happens in `main.dart`.
 
 ### Crash Reporting
-`CrashService` is initialized first in `main.dart` and captures both Flutter framework errors (`FlutterError.onError`) and uncaught zone errors (`runZonedGuarded`). Sentry is scaffolded but commented out in `pubspec.yaml` — wire in a DSN before relying on remote crash reports.
+`CrashService` is initialized first in `main.dart` and captures both Flutter framework errors (`FlutterError.onError`) and uncaught zone errors (`runZonedGuarded`) — both funnel through `CrashService.recordError`. Two layers:
+- **Local log (always on):** errors are appended to a size-capped `crash_log.txt` (256 KB, trimmed) in the app documents dir; works in release. This is the default with no configuration.
+- **Sentry (remote, DSN-gated):** `sentry_flutter` is a live dependency but only initializes when a DSN is supplied at build time via `--dart-define=SENTRY_DSN=https://…` (read through `String.fromEnvironment`; never stored in the repo). Sentry is initialized **without** `appRunner`, and because `main.dart` sets its own `FlutterError.onError` after `initialize()`, `recordError` is the single reporting path (no double-capture). With no DSN, nothing is sent remotely.
 
 ### PDF Export
 `PdfService` builds account statements via the `pdf` + `printing` packages for share/print.
