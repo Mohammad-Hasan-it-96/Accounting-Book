@@ -13,6 +13,18 @@ number and the date at the top of each run.
 
 ## 1. Static Checks & Build
 
+### Release Signing (one-time setup)
+Full walkthrough: [`docs/RELEASE_SIGNING.md`](docs/RELEASE_SIGNING.md). Do this
+once; the release build **refuses to sign** until it's in place (resolves C1).
+- [ ] Upload keystore generated **outside** the repo (`keytool -genkeypair … -storetype PKCS12`).
+- [ ] `android/key.properties` created with `keyAlias` / `keyPassword` /
+      `storeFile` (forward-slash path) / `storePassword`.
+- [ ] `git status` shows **neither** the keystore nor `key.properties` (both gitignored).
+- [ ] Keystore file **and** its passwords backed up in ≥2 secure places (losing
+      them = can't update the listing).
+- [ ] Negative test: temporarily removing `key.properties` makes a *release*
+      build fail with the "التوقيع للإصدار غير مُهيّأ" error (then restore it).
+
 ### Flutter Analyze
 - [ ] `flutter pub get` completes with no errors.
 - [ ] `flutter analyze` reports **no errors** (warnings reviewed and accepted).
@@ -23,12 +35,30 @@ number and the date at the top of each run.
 - [ ] New/changed behavior since last release has test coverage (or is noted).
 
 ### APK Build
+Build the shipping artifact **with the Sentry DSN** so remote crash reporting is
+active (omit the flag only for a deliberately no-telemetry build):
+```
+flutter build appbundle --release --dart-define=SENTRY_DSN=https://<key>@<org>.ingest.sentry.io/<project>
+# or, for a direct APK:
+flutter build apk --release --dart-define=SENTRY_DSN=https://<key>@<org>.ingest.sentry.io/<project>
+```
 - [ ] `flutter build apk --release` succeeds.
 - [ ] (If shipping to Play) `flutter build appbundle --release` succeeds.
-- [ ] APK is signed with the **release** keystore (not debug).
+- [ ] APK/AAB is signed with the **release** keystore (not debug) — verify via
+      `keytool -printcert -jarfile <artifact>`.
 - [ ] `version`/`versionCode` in the built artifact match this checklist header.
 - [ ] APK installs on a clean device without errors.
 - [ ] App launches past `SplashScreen` without a crash.
+
+### Crash Reporting (Sentry)
+- [ ] Build passed `--dart-define=SENTRY_DSN=…` (the DSN is **not** committed;
+      supply it at build time / from a CI secret). See `CrashService`.
+- [ ] DSN copied from Sentry → Project Settings → Client Keys, pointing at the
+      correct project/environment.
+- [ ] Smoke-test: trigger a test error on the built app and confirm it appears in
+      the Sentry dashboard (then confirm normal runs report **no** noise).
+- [ ] With **no** DSN, the app still runs and logs locally to `crash_log.txt`
+      (no remote send) — i.e. the DSN is truly optional.
 
 ---
 
@@ -184,6 +214,8 @@ Per-OS attention points:
 - [ ] Staged/percentage rollout configured (start small, e.g. 10–20%).
 - [ ] Correct track selected (production vs. testing) before submitting.
 - [ ] Pre-launch report reviewed (no new crashes on Google's test devices).
+- [ ] Sentry dashboard watched during rollout for new crash groups (if a DSN was
+      shipped); triage before widening the staged rollout.
 - [ ] Rollback / halt-rollout plan noted in case of post-release crashes.
 
 ---
