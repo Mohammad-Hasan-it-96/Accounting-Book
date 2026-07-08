@@ -21,14 +21,18 @@ flutter test             # Run tests
 ### Entry Flow
 `main.dart` → `app.dart` (MultiProvider root) → `SplashScreen` → checks activation via `ActivationService` → `ActivationScreen` or `HomeScreen`
 
+`main.dart` wraps startup in `runZonedGuarded`, initializes `CrashService`, then wires `FlutterError.onError` — all before `runApp`. WorkManager init (`callbackDispatcher`) and re-registering the periodic auto-backup task are deferred to a fire-and-forget `_initBackgroundServices()` **after** `runApp` (to cut first-frame latency). `FlutterError.onError` is set **after** `CrashService.initialize()` on purpose, so it overrides Sentry's auto error integration and each crash is reported exactly once via `recordError`.
+
 ### Directory Layout
 ```
 lib/
 ├── app.dart                    # Root widget, MultiProvider setup
 ├── core/
 │   ├── constants/              # DB table names, currency mappings
-│   ├── helpers/                # FormatHelper, StatementHelper, CustomerHelper
-│   ├── services/               # ActivationService, SettingsService, UpdateService
+│   ├── helpers/                # FormatHelper, StatementHelper, CustomerHelper,
+│   │                           #   FormValidators, UrlHelper
+│   ├── services/               # ActivationService, SettingsService, UpdateService,
+│   │                           #   PinService, CrashService, PdfService, BackupSchedulerService
 │   ├── theme/app_theme.dart    # Material3 light/dark themes
 │   └── widgets/                # Shared widgets (UpdateDialog)
 ├── data/
@@ -55,5 +59,73 @@ Provider (v6.1.5). Only two providers exist at the global level: `AppProvider` (
 - Currencies are stored in DB; the UI filters views by currency type ("محلي" vs "دولار")
 - Activation is keyed on a hashed Android device ID; `ActivationService` checks/stores status in `shared_preferences` and validates against a remote API whose URL is user-configurable in Settings
 
+### Security / App Lock
+- `PinService` (singleton) stores a SHA-256 hash of the PIN in `flutter_secure_storage` (encrypted shared prefs), not `shared_preferences`. The salt prefix `daftar_pin_` is baked into the hash.
+- Brute-force protection: after `maxFailedAttempts` (5) the service locks out for `lockoutDurationMinutes` (5).
+- Optional biometric unlock via `local_auth`; entry/unlock UI lives in `screens/lock/lock_screen.dart`.
+- Auto-lock is driven by app lifecycle in `app.dart`: on `paused` it records the time; on `resumed` it re-shows `LockScreen` if PIN is enabled and elapsed time exceeds `SettingsService.getAutoLockTimeout()` (timeout ≤ 0 disables it). The push uses the top-level `_navigatorKey`.
+
+### Background Backup
+- `BackupSchedulerService` registers a daily WorkManager periodic task (`com.daftar.auto_backup`); the enabled flag lives in `shared_preferences`.
+- `callbackDispatcher` is a top-level `@pragma('vm:entry-point')` function that runs `DatabaseHelper().autoBackup()` in the background. Registering/initializing WorkManager happens in `main.dart`.
+
+### Crash Reporting
+`CrashService` is initialized first in `main.dart` and captures both Flutter framework errors (`FlutterError.onError`) and uncaught zone errors (`runZonedGuarded`) — both funnel through `CrashService.recordError`. Two layers:
+- **Local log (always on):** errors are appended to a size-capped `crash_log.txt` (256 KB, trimmed) in the app documents dir; works in release. This is the default with no configuration.
+- **Sentry (remote, DSN-gated):** `sentry_flutter` is a live dependency but only initializes when a DSN is supplied at build time via `--dart-define=SENTRY_DSN=https://…` (read through `String.fromEnvironment`; never stored in the repo). Sentry is initialized **without** `appRunner`, and because `main.dart` sets its own `FlutterError.onError` after `initialize()`, `recordError` is the single reporting path (no double-capture). With no DSN, nothing is sent remotely.
+
+### PDF Export
+`PdfService` builds account statements via the `pdf` + `printing` packages for share/print.
+
+### Design System (Tokens)
+All visual constants are centralized under `core/theme/` — do not hardcode sizes/colors/durations/styles in screens:
+- `app_dimens.dart` — `AppSpacing` (4-pt grid: xxs..xxxl), `AppRadius` (sm 8 / md 12 / lg 16, plus ready `*All` BorderRadius), `AppIconSize` (sm 16 / md 20 / lg 24 / xl 32 / xxl 48 / empty 64), `AppFontSize` (micro 10 → display 26), and `Gap` spacer widgets.
+- `app_colors.dart` — `AppColors` is the single source for colors: `primary`/`primaryLight`, semantic `income`/`incomeDark`/`expense`/`expenseDark`, `cardDark`, and brand `whatsApp`/`telegram`. Reference these instead of repeating hex. (Material grey/status shades stay as `Colors.*` — already named constants.)
+- `app_durations.dart` — `AppDurations` (fast/medium/slow/splashHold/snackbar/snackbarShort) for UI animation + feedback timing. Network timeouts and logic timers are NOT design tokens and stay in their layer.
+- `app_text_styles.dart` — `AppTextStyles` reusable styles built on `AppFontSize` (size-only scale + `*Bold` heading variants); compose with `.copyWith(color: ...)` at the call site.
+- `app_theme.dart` — Material 3 component themes (unified 48px-min buttons with md radius, `StadiumBorder` chips/badges, lg-radius dialogs, md-radius cards/inputs); pulls its colors from `AppColors`.
+- Pill-shaped badges/chips use `StadiumBorder` (via `ShapeDecoration` for custom containers), not a large `borderRadius`.
+
+### Form Inputs (Standardized)
+All form fields go through shared widgets/helpers — do not hand-roll `TextFormField`/`DropdownButtonFormField`/date-picker decorations in screens:
+- `core/widgets/app_form_field.dart` — `AppTextField`, `AppDropdownField<T>`, `AppDateField`. Each takes `label` + `icon`; `required: true` appends the ` *` marker and wires the required validator. They work inside a `Form` and inside dialogs. `AppTextField` auto-sets `alignLabelWithHint` for multiline.
+- `core/helpers/form_validators.dart` — `FormValidators` is the single source for validation logic/messages: `required([msg])`, `requiredValue<T>([msg])`, `amount(...)`. Pass a descriptive per-field message; the trim/number logic stays centralized.
+- Standard inter-field spacing is `Gap.h12` (`Gap.h8` for tighter dialogs) — not raw `SizedBox` or `AppSpacing.lg`.
+- Search bars and date-range *filter* controls are not form inputs and intentionally stay outside this system.
+
+### Confirmation Dialogs (Standardized)
+All yes/no confirmation and delete dialogs go through one helper — do not hand-roll `AlertDialog` for confirmations:
+- `core/widgets/app_dialog.dart` — `AppDialog.confirm(context, title:, message:, confirmLabel:, cancelLabel:, destructive:, icon:)` returns a `Future<bool>` (`true` = confirmed). Cancel is always a `TextButton`; confirm is always a `FilledButton`. `destructive: true` makes the confirm button red (`AppColors.expense`) and adds a `warning_amber_rounded` icon in the title — use it for deletes and any non-reversible action (including discard-changes prompts). Pass an `icon:` to add a leading title icon on non-destructive dialogs.
+- Delete confirmation messages state that the action cannot be undone.
+- Only dialogs with custom body content (PIN entry, group-name input, balance settlement, the update dialog) remain hand-built `AlertDialog`s; they still follow the same button convention (`TextButton` cancel + `FilledButton` confirm) and inherit the themed title style.
+
+### Notifications / SnackBars (Standardized)
+All transient feedback goes through one helper — do not hand-roll `SnackBar`/`ScaffoldMessenger.of(context).showSnackBar(...)` in screens:
+- `core/widgets/app_snackbar.dart` — `AppSnackBar.success(context, message)`, `AppSnackBar.error(context, message)`, `AppSnackBar.warning(context, message)`, `AppSnackBar.info(context, message)`. Each shows a floating SnackBar with a consistent semantic color (`AppColors.income`/`expense`/`warning`/`primary`), a leading white icon (check / error / warning / info), white text, and `AppDurations.snackbar` duration. The helper calls `hideCurrentSnackBar()` first so messages never stack.
+- Pick by intent: **success** = an action completed (saved/deleted/exported/copied); **error** = an operation failed or hit an unexpected state; **warning** = an advisory the user must heed but that isn't a failure (validation gaps, empty-export, "can't delete: has transactions"); **info** = a neutral notice that is neither success, failure, nor warning ("جارٍ تحميل البيانات…", neutral status messages).
+- After an `await`, guard with `if (!mounted) return;` before calling (the helper takes a `BuildContext`). For callbacks that capture `build`'s `context`, move the async work into a State method so `context` resolves to `this.context` and the `mounted` check relates.
+- `AppColors.warning` (orange) is the semantic token for advisory feedback.
+
+### Loading Indicators (Standardized)
+All spinners go through one widget — do not hand-roll `CircularProgressIndicator`/`Center(child: CircularProgressIndicator())`/`SizedBox`-wrapped spinners in screens:
+- `core/widgets/app_loading.dart` — `const AppLoading()` renders a centered, full-area spinner (for a screen body waiting on data, using the default Material stroke). `const AppLoading.inline({size, strokeWidth, color})` renders a fixed-size spinner to drop into a button or list tile in place of its icon while an action runs; `size` defaults to `AppIconSize.md` (20) and `strokeWidth` to 2. Pass `AppIconSize.lg`/`AppIconSize.xl` and a `color` (e.g. `Colors.white` on colored surfaces) when a specific call site needs it.
+- No animations beyond the indeterminate spinner itself — keep loading UI lightweight.
+- The single `LinearProgressIndicator` (top-of-card progress bar on the home screen) is a deliberate one-off and intentionally stays outside this widget.
+
+### Empty States (Standardized)
+All "no data" / "no results" placeholders go through one widget — do not hand-roll a `Center(child: Column(...))` with a grey icon + texts in screens:
+- `core/widgets/app_empty_state.dart` — `AppEmptyState(icon:, title:, description:, actionLabel:, actionIcon:, onAction:, iconSize:)`. It renders a centered column: a light-grey icon (`AppIconSize.empty` 64 by default; pass `AppIconSize.xxl` 48 for a compact panel), a `subtitle`-sized bold grey title, an optional short grey `description`, and an optional action button (shown only when both `actionLabel` and `onAction` are given — `ElevatedButton.icon` when `actionIcon` is set, else `ElevatedButton`).
+- Use it for list/search empties (customers, groups, transactions, search results). For a screen with a single conditional empty (e.g. filtered vs. truly empty), branch the `icon`/`title`/`description`/action inline at the call site or in a small `_buildEmpty...()` State method rather than re-creating the layout.
+
+### Error States (Standardized)
+All "failed to load" UI goes through one widget — do not hand-roll error rows/columns in screens:
+- `core/widgets/app_error_state.dart` — `AppErrorState(icon:, title:, message:, onRetry:, retryLabel:)` renders a centered full-area error placeholder: a soft-red icon (`Icons.error_outline` 64 by default), a bold grey title, an optional `message`, and an optional «إعادة المحاولة» retry button (shown only when `onRetry` is given). `AppErrorState.inline(title:, onRetry:)` renders a slim orange `warning_amber_rounded` banner for a non-blocking error inside a page that still works (e.g. the home currencies-load hint).
+- Screens that load data in a `_load()`/`try`/`catch` set a local `_loadError` flag in the existing catch block and render `AppErrorState(onRetry: _load)` ahead of the empty-state branch (`_loading → _loadError → empty → list`). This is view-state only — repositories, DB access, and domain calculations are untouched; retry just re-invokes the existing loader.
+- Transient/one-off failures still use `AppSnackBar.error(...)`; `AppErrorState` is for persistent "this section couldn't load" placeholders.
+
+### External Links (Standardized)
+All external-URL opening goes through one helper — do not hand-roll `launchUrl(...)` in screens:
+- `core/helpers/url_helper.dart` — `UrlHelper.open(context, url, {errorMessage})` parses the URL, launches it with `LaunchMode.externalApplication`, and on failure shows `AppSnackBar.error(...)` (default message «تعذر فتح الرابط»; pass `errorMessage` for a context-specific one). Used for `wa.me`/telegram/`mailto:` contact links and the APK update link.
+
 ### Localization
-Arabic-first RTL layout. Uses `flutter_localizations` + `intl`. Comments throughout the codebase are in Arabic.
+Arabic-first RTL layout. Uses `flutter_localizations` + `intl`. Comments throughout the codebase are in Arabic. `app.dart` caps `textScaler` at 1.3 (upper bound only, no lower bound) to prevent layout breakage at large system font sizes. Do not add a lower bound (e.g. `minScaleFactor: 1.0`) — a positive minimum collides with Flutter's internal re-clamping (e.g. the date-picker header clamping to `1.0` when the device font scale is ≤ 1.0), tripping the `maxScale > minScale` assertion in `_ClampedTextScaler` and crashing the route.

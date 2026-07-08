@@ -20,7 +20,11 @@ class App extends StatefulWidget {
 }
 
 class _AppState extends State<App> with WidgetsBindingObserver {
-  DateTime? _pausedAt;
+  // مؤقّت أحادي الاتجاه لقياس مدّة بقاء التطبيق في الخلفية. نستخدم Stopwatch
+  // (ساعة رتيبة) بدل DateTime.now() حتى لا يستطيع تغيير ساعة الجهاز أو التوقيت
+  // الصيفي تجاوز القفل التلقائي (فرق سالب/ضخم مع الساعة الجدارية).
+  final Stopwatch _backgrounded = Stopwatch();
+  bool _lockShown = false; // منع تكديس عدة شاشات قفل عند تعاقب خلفية/مقدّمة سريع
 
   @override
   void initState() {
@@ -37,22 +41,31 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     if (state == AppLifecycleState.paused) {
-      _pausedAt = DateTime.now();
-    } else if (state == AppLifecycleState.resumed && _pausedAt != null) {
+      _backgrounded
+        ..reset()
+        ..start();
+    } else if (state == AppLifecycleState.resumed && _backgrounded.isRunning) {
+      final elapsed = _backgrounded.elapsed.inSeconds;
+      _backgrounded
+        ..stop()
+        ..reset();
       final timeout = await SettingsService().getAutoLockTimeout();
       if (timeout <= 0) return;
-      final elapsed = DateTime.now().difference(_pausedAt!).inSeconds;
       if (elapsed < timeout) return;
       final pinEnabled = await PinService().isPinEnabled();
       if (!pinEnabled) return;
+      if (_lockShown) return; // شاشة قفل معروضة مسبقاً
       final nav = _navigatorKey.currentState;
       if (nav == null) return;
-      nav.push(
-        PageRouteBuilder(
-          pageBuilder: (_, _, _) => const LockScreen(),
-          transitionDuration: Duration.zero,
-        ),
-      );
+      _lockShown = true;
+      nav
+          .push(
+            PageRouteBuilder(
+              pageBuilder: (_, _, _) => const LockScreen(),
+              transitionDuration: Duration.zero,
+            ),
+          )
+          .whenComplete(() => _lockShown = false);
     }
   }
 
@@ -71,21 +84,24 @@ class _AppState extends State<App> with WidgetsBindingObserver {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.themeMode,
-          supportedLocales: const [Locale('ar'), Locale('en')],
+          // التطبيق عربي بالكامل: نثبّت اللغة على العربية حتى لا تُعرَض الواجهة
+          // بترتيب LTR على الأجهزة غير العربية (يقلب التخطيط ويكسر اتجاه الأيقونات).
+          locale: const Locale('ar'),
+          supportedLocales: const [Locale('ar')],
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          // منع تكسُّر التخطيط عند أحجام الخط الكبيرة
+          // منع تكسُّر التخطيط عند أحجام الخط الكبيرة.
+          // نضع حدًّا أعلى فقط (1.3) دون حدٍّ أدنى: تثبيت الحد الأدنى عند 1.0
+          // يتعارض مع إعادة قصّ Flutter الداخلية (مثل ترويسة منتقي التاريخ) عندما
+          // يكون مقياس خط الجهاز ≤ 1.0، فيفشل التأكيد maxScale > minScale.
           builder: (context, child) {
             final mq = MediaQuery.of(context);
             return MediaQuery(
               data: mq.copyWith(
-                textScaler: mq.textScaler.clamp(
-                  minScaleFactor: 1.0,
-                  maxScaleFactor: 1.3,
-                ),
+                textScaler: mq.textScaler.clamp(maxScaleFactor: 1.3),
               ),
               child: child!,
             );

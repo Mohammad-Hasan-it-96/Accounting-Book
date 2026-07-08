@@ -53,7 +53,10 @@ dependencies:
   workmanager: ^0.9.0
   flutter_secure_storage: ^9.2.2
   local_auth: ^2.3.0
-  # sentry_flutter: ^9.0.0  # Add and configure with your DSN once ready to ship
+  # الإبلاغ عن الأعطال عن بُعد. مُفعَّل ويُهيَّأ فقط عند تمرير DSN:
+  #   flutter build appbundle --release --dart-define=SENTRY_DSN=https://...
+  # بلا DSN يبقى الإبلاغ محلياً فقط (crash_log.txt) دون أي إرسال.
+  sentry_flutter: ^9.0.0
 
 dev_dependencies:
   flutter_test:
@@ -88,7 +91,7 @@ flutter:
 
 # App icon — place a 1024x1024 PNG at assets/icon/app_icon.png then run:
 # dart run flutter_launcher_icons
-flutter_icons:
+flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icon/app_icon.png"

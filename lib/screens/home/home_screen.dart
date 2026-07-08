@@ -1,15 +1,25 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimens.dart';
+import '../../core/theme/app_text_styles.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/update_service.dart';
+import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_empty_state.dart';
+import '../../core/widgets/app_error_state.dart';
+import '../../core/widgets/app_loading.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/models/customer.dart';
+import '../../data/models/currency.dart';
 import '../currency_accounts/currency_accounts_screen.dart';
 import '../customer_details/customer_details_screen.dart';
 import '../settings/settings_screen.dart';
@@ -87,25 +97,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final path = result.files.single.path!;
     if (!mounted) return;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('تأكيد الاستيراد'),
-        content: const Text(
-          'سيتم استبدال قاعدة البيانات الحالية بالملف المختار.\n'
+    final confirm = await AppDialog.confirm(
+      context,
+      title: 'تأكيد الاستيراد',
+      message: 'سيتم استبدال قاعدة البيانات الحالية بالملف المختار.\n'
           'سيتم أخذ نسخة احتياطية تلقائية قبل الاستيراد.',
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('إلغاء')),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('استيراد')),
-        ],
-      ),
+      confirmLabel: 'استيراد',
+      icon: Icons.file_download_outlined,
     );
-    if (confirm != true) {
+    if (!confirm) {
       if (mounted) setState(() => _backupInProgress = false);
       return;
     }
@@ -118,20 +118,20 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     if (!ok) {
       setState(() => _backupInProgress = false);
-      _showSnack('تعذر استيراد النسخة الاحتياطية', isError: true);
+      AppSnackBar.error(context, 'تعذر استيراد النسخة الاحتياطية');
       return;
     }
     final valid = await provider.dbHelper.validateTables();
     if (!mounted) return;
     if (!valid) {
       setState(() => _backupInProgress = false);
-      _showSnack('الملف غير متوافق: الجداول أو الأعمدة الأساسية ناقصة', isError: true);
+      AppSnackBar.error(context, 'الملف غير متوافق: الجداول أو الأعمدة الأساسية ناقصة');
       return;
     }
     await provider.reload();
     if (!mounted) return;
     setState(() => _backupInProgress = false);
-    _showSnack('تم استيراد النسخة الاحتياطية بنجاح');
+    AppSnackBar.success(context, 'تم استيراد النسخة الاحتياطية بنجاح');
     _loadActivationStatus();
   }
 
@@ -144,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     if (path == null) {
       setState(() => _backupInProgress = false);
-      _showSnack('تعذر تصدير النسخة الاحتياطية', isError: true);
+      AppSnackBar.error(context, 'تعذر تصدير النسخة الاحتياطية');
       return;
     }
     await Share.shareXFiles(
@@ -153,31 +153,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (!mounted) return;
     setState(() => _backupInProgress = false);
-    _showSnack('تم تصدير النسخة الاحتياطية بنجاح');
-  }
-
-  void _showSnack(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
-      behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 3),
-    ));
+    AppSnackBar.success(context, 'تم تصدير النسخة الاحتياطية بنجاح');
   }
 
   // ─── فتح دفتر عملة ───────────────────────────────────────────────────────
   void _openCurrencyBook(String displayName) {
     final provider = context.read<AppProvider>();
     if (provider.loading) {
-      _showSnack('جارٍ تحميل البيانات...');
+      AppSnackBar.info(context, 'جارٍ تحميل البيانات...');
       return;
     }
     final currency =
         displayName == 'ليرة' ? provider.liraCurrency : provider.dollarCurrency;
     if (currency == null) {
-      _showSnack(
+      AppSnackBar.error(
+        context,
         'عملة "$displayName" غير موجودة.\nاستورد قاعدة بيانات أو أعد تشغيل التطبيق.',
-        isError: true,
       );
       return;
     }
@@ -199,6 +190,11 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('دفتر حسابات'),
         actions: [
+          // حالة التفعيل بشكل خفيف داخل الشريط العلوي
+          _ActivationIndicator(
+            isActivated: _isActivated,
+            customerCount: _customerCount,
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'الإعدادات',
@@ -209,44 +205,54 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+      // زر الإضافة الرئيسي — بارز ودائم الظهور
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: isLoading ? null : _startAddCustomer,
+        icon: const Icon(Icons.person_add_alt_1),
+        label: const Text('إضافة عميل'),
+      ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        // الحشوة السفلية تترك مساحة للزر العائم
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 80),
         children: [
-          // ── شريط حالة التفعيل ─────────────────────────────────────
-          _ActivationBanner(
-            isActivated: _isActivated,
-            customerCount: _customerCount,
-          ),
           if (provider.hasError)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded,
-                      size: 14, color: Colors.orange.shade700),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'تعذر تحميل العملات. أعد تشغيل التطبيق.',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.orange.shade700),
-                    ),
-                  ),
-                ],
+            const Padding(
+              padding: EdgeInsets.only(top: AppSpacing.sm),
+              child: AppErrorState.inline(
+                title: 'تعذر تحميل العملات. أعد تشغيل التطبيق.',
               ),
             ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.md),
 
           // ── بحث سريع ────────────────────────────────────────────
           TextField(
             controller: _searchCtrl,
+            textInputAction: TextInputAction.search,
             decoration: InputDecoration(
-              hintText: 'بحث سريع عن عميل...',
+              hintText: 'ابحث عن عميل بالاسم...',
               prefixIcon: const Icon(Icons.search),
               isDense: true,
+              filled: true,
+              fillColor: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.grey.shade100,
+              border: const OutlineInputBorder(
+                borderRadius: AppRadius.lgAll,
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: const OutlineInputBorder(
+                borderRadius: AppRadius.lgAll,
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: const OutlineInputBorder(
+                borderRadius: AppRadius.lgAll,
+                borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+              ),
               suffixIcon: _searchCtrl.text.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),
+                      tooltip: 'مسح البحث',
                       onPressed: () {
                         _searchCtrl.clear();
                         setState(() {});
@@ -258,16 +264,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // ── نتائج البحث ──────────────────────────────────────────
           if (_searchCtrl.text.trim().isNotEmpty) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpacing.xs),
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 240),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: AppRadius.mdAll,
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: AppRadius.mdAll,
                   child: _QuickSearchResults(
                     query: _searchCtrl.text.trim(),
                     provider: provider,
@@ -278,15 +284,17 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             if (provider.liraCurrency != null && provider.dollarCurrency != null)
               Padding(
-                padding: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
                 child: Text(
                   'عند فتح عميل من البحث سيتم سؤالك عن الدفتر.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  style: TextStyle(
+                      fontSize: AppFontSize.caption,
+                      color: Colors.grey.shade600),
                 ),
               ),
           ],
 
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
 
           // ── زرا الدفاتر الرئيسيان ────────────────────────────────
           Row(
@@ -295,17 +303,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _BookButton(
                   label: 'دفتر الليرة',
                   icon: Icons.account_balance_wallet_outlined,
-                  color: const Color(0xFF1565C0),
+                  color: AppColors.primary,
                   onTap: isLoading ? null : () => _openCurrencyBook('ليرة'),
                   loading: isLoading,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: _BookButton(
                   label: 'دفتر الدولار',
                   icon: Icons.attach_money,
-                  color: const Color(0xFF2E7D32),
+                  color: AppColors.income,
                   onTap: isLoading ? null : () => _openCurrencyBook('دولار'),
                   loading: isLoading,
                 ),
@@ -313,7 +321,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpacing.lg),
 
           // ── بطاقة النسخ الاحتياطي ────────────────────────────────
           _BackupCard(
@@ -321,87 +329,151 @@ class _HomeScreenState extends State<HomeScreen> {
             onExport: _exportBackup,
             inProgress: _backupInProgress,
           ),
-
-          const SizedBox(height: 20),
         ],
       ),
     );
   }
+
+  // ─── بدء إضافة عميل من الرئيسية ──────────────────────────────────────────
+  // يسأل عن الدفتر (عند توفّر عملتين) ثم يفتح دفتر تلك العملة على وضع الإضافة
+  // مباشرةً، فيُعاد استخدام فحص الحد المجاني وتدفّق الإضافة الموجودَين أصلاً.
+  void _startAddCustomer() {
+    final provider = context.read<AppProvider>();
+    if (provider.loading) {
+      AppSnackBar.info(context, 'جارٍ تحميل البيانات...');
+      return;
+    }
+    final lira = provider.liraCurrency;
+    final dollar = provider.dollarCurrency;
+
+    if (lira == null && dollar == null) {
+      AppSnackBar.error(
+        context,
+        'لا توجد عملة متاحة.\nاستورد قاعدة بيانات أو أعد تشغيل التطبيق.',
+      );
+      return;
+    }
+    if (lira != null && dollar == null) {
+      _openBookToAdd(lira);
+      return;
+    }
+    if (dollar != null && lira == null) {
+      _openBookToAdd(dollar);
+      return;
+    }
+
+    // عملتان متاحتان → اسأل عن الدفتر (كلاهما غير فارغ بعد الفحوص أعلاه)
+    final Currency liraBook = lira!;
+    final Currency dollarBook = dollar!;
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: AppRadius.lgRadius),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
+              child: Row(
+                children: [
+                  const Icon(Icons.person_add_alt_1, color: AppColors.primary),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text('إضافة عميل إلى:', style: AppTextStyles.subtitleBold),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet,
+                  color: AppColors.primary),
+              title: const Text('دفتر الليرة'),
+              onTap: () {
+                Navigator.pop(context);
+                _openBookToAdd(liraBook);
+              },
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.attach_money, color: AppColors.income),
+              title: const Text('دفتر الدولار'),
+              onTap: () {
+                Navigator.pop(context);
+                _openBookToAdd(dollarBook);
+              },
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openBookToAdd(Currency currency) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            CurrencyAccountsScreen(currency: currency, openAddOnStart: true),
+      ),
+    ).then((_) => _loadActivationStatus());
+  }
 }
 
-// ─── شريط حالة التفعيل ───────────────────────────────────────────────────────
-class _ActivationBanner extends StatelessWidget {
+// ─── مؤشّر حالة التفعيل (خفيف داخل الشريط العلوي) ────────────────────────────
+class _ActivationIndicator extends StatelessWidget {
   final bool isActivated;
   final int  customerCount;
-  const _ActivationBanner({
+  const _ActivationIndicator({
     required this.isActivated,
     required this.customerCount,
   });
 
   @override
   Widget build(BuildContext context) {
+    // مفعّل → شارة تحقّق بسيطة فقط
     if (isActivated) {
-      return Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              border: Border.all(color: Colors.green.shade200),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.verified_outlined,
-                    size: 14, color: Colors.green.shade700),
-                const SizedBox(width: 4),
-                Text(
-                  'مفعّل',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.green.shade700,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        child: Tooltip(
+          message: 'مفعّل',
+          child: Icon(Icons.verified,
+              color: Colors.white, size: AppIconSize.md),
+        ),
       );
     }
 
-    // غير مفعّل — اعرض العداد
+    // غير مفعّل → عدّاد خفيف (شريحة شفّافة فوق لون الشريط)
     final remaining = AppConstants.trialCustomerLimit - customerCount;
     final isNearLimit = remaining <= 10;
-    final color = isNearLimit ? Colors.orange : Colors.blueGrey;
 
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
-            border: Border.all(color: color.withValues(alpha: 0.35)),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.lock_open_outlined, size: 14, color: color.shade700),
-              const SizedBox(width: 4),
-              Text(
-                'مجاني: $customerCount / ${AppConstants.trialCustomerLimit}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: color.shade700,
-                  fontWeight: FontWeight.bold,
-                ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      child: Center(
+        child: Tooltip(
+          message:
+              'الحساب المجاني: $customerCount من ${AppConstants.trialCustomerLimit}',
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm, vertical: AppSpacing.xxs),
+            decoration: ShapeDecoration(
+              color: Colors.white
+                  .withValues(alpha: isNearLimit ? 0.28 : 0.16),
+              shape: const StadiumBorder(),
+            ),
+            child: Text(
+              '$customerCount/${AppConstants.trialCustomerLimit}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: AppFontSize.caption,
+                fontWeight: FontWeight.bold,
               ),
-            ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -426,29 +498,28 @@ class _BookButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: loading ? color.withValues(alpha: 0.45) : color,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: AppRadius.mdAll,
       elevation: loading ? 0 : 2,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadius.mdAll,
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 26),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxl),
           child: Column(
             children: [
               loading
-                  ? const SizedBox(
-                      width: 36,
-                      height: 36,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2.5),
+                  ? const AppLoading.inline(
+                      size: AppIconSize.xl,
+                      strokeWidth: 2.5,
+                      color: Colors.white,
                     )
-                  : Icon(icon, color: Colors.white, size: 36),
-              const SizedBox(height: 10),
+                  : Icon(icon, color: Colors.white, size: AppIconSize.xl),
+              const SizedBox(height: AppSpacing.md),
               Text(
                 label,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 17,
+                  fontSize: AppFontSize.subtitle,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -476,51 +547,53 @@ class _BackupCard extends StatelessWidget {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: AppRadius.mdAll,
         side: BorderSide(color: Colors.grey.shade200),
       ),
       child: Column(
         children: [
           if (inProgress)
-            ClipRRect(
+            const ClipRRect(
               borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
-              child: const LinearProgressIndicator(minHeight: 3),
+                  BorderRadius.vertical(top: AppRadius.mdRadius),
+              child: LinearProgressIndicator(minHeight: 3),
             ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg, vertical: AppSpacing.md),
             child: Row(
               children: [
                 Icon(Icons.save_outlined,
-                    size: 18, color: Colors.grey.shade500),
-                const SizedBox(width: 8),
+                    size: AppIconSize.md, color: Colors.grey.shade500),
+                const SizedBox(width: AppSpacing.sm),
                 Text(
                   'النسخ الاحتياطي',
                   style: TextStyle(
-                      fontSize: 13,
+                      fontSize: AppFontSize.body,
                       color: Colors.grey.shade600,
                       fontWeight: FontWeight.w600),
                 ),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: inProgress ? null : onImport,
-                  icon: const Icon(Icons.upload_file, size: 16),
+                  icon: const Icon(Icons.upload_file, size: AppIconSize.sm),
                   label: const Text('استيراد'),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.grey.shade700,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                   ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: AppSpacing.xs),
                 TextButton.icon(
                   onPressed: inProgress ? null : onExport,
-                  icon: const Icon(Icons.download_outlined, size: 16),
+                  icon: const Icon(Icons.download_outlined,
+                      size: AppIconSize.sm),
                   label: const Text('تصدير'),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.grey.shade700,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md, vertical: AppSpacing.xs),
                   ),
                 ),
               ],
@@ -551,6 +624,7 @@ class _QuickSearchResults extends StatefulWidget {
 class _QuickSearchResultsState extends State<_QuickSearchResults> {
   List<Customer> _results = [];
   bool _loading = false;
+  Timer? _debounce;
 
   @override
   void initState() {
@@ -561,10 +635,21 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
   @override
   void didUpdateWidget(_QuickSearchResults old) {
     super.didUpdateWidget(old);
-    if (old.query != widget.query) _search();
+    // ارتداد (~300ms) حتى لا نُطلق استعلام قاعدة بيانات مع كل ضغطة مفتاح.
+    if (old.query != widget.query) {
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 300), _search);
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
   }
 
   Future<void> _search() async {
+    if (!mounted) return;
     setState(() => _loading = true);
     try {
       final repo = CustomerRepository(widget.provider.dbHelper);
@@ -581,9 +666,7 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
     final dollar = widget.provider.dollarCurrency;
 
     if (lira == null && dollar == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لا توجد عملة متاحة')),
-      );
+      AppSnackBar.warning(context, 'لا توجد عملة متاحة');
       return;
     }
 
@@ -601,16 +684,17 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: AppRadius.lgRadius),
       ),
       builder: (_) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm,
+                    AppSpacing.lg, AppSpacing.md),
                 child: Row(
                   children: [
                     CircleAvatar(
@@ -618,15 +702,14 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
                         customer.name.isNotEmpty ? customer.name[0] : '؟',
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             customer.name,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16),
+                            style: AppTextStyles.subtitleBold,
                           ),
                         ],
                       ),
@@ -638,7 +721,7 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
               if (lira != null)
                 ListTile(
                   leading: const Icon(Icons.account_balance_wallet,
-                      color: Color(0xFF1565C0)),
+                      color: AppColors.primary),
                   title: const Text('دفتر الليرة'),
                   onTap: () async {
                     Navigator.pop(context);
@@ -648,14 +731,14 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
               if (dollar != null)
                 ListTile(
                   leading: const Icon(Icons.attach_money,
-                      color: Color(0xFF2E7D32)),
+                      color: AppColors.income),
                   title: const Text('دفتر الدولار'),
                   onTap: () async {
                     Navigator.pop(context);
                     await _navigate(context, customer, dollar);
                   },
                 ),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSpacing.xs),
             ],
           ),
         ),
@@ -679,21 +762,13 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppLoading();
     }
     if (_results.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off, size: 48, color: Colors.grey.shade300),
-            const SizedBox(height: 8),
-            Text(
-              'لا نتائج لـ "${widget.query}"',
-              style: TextStyle(color: Colors.grey.shade500),
-            ),
-          ],
-        ),
+      return AppEmptyState(
+        icon: Icons.search_off,
+        iconSize: AppIconSize.xxl,
+        title: 'لا نتائج لـ "${widget.query}"',
       );
     }
     final displayResults =
@@ -706,8 +781,8 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
         final c = displayResults[i];
         return ListTile(
           dense: widget.compact,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.xxs),
           leading: CircleAvatar(
             radius: widget.compact ? 14 : 18,
             backgroundColor:
@@ -717,7 +792,9 @@ class _QuickSearchResultsState extends State<_QuickSearchResults> {
               style: TextStyle(
                 color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.bold,
-                fontSize: widget.compact ? 12 : 14,
+                fontSize: widget.compact
+                    ? AppFontSize.small
+                    : AppFontSize.bodyLg,
               ),
             ),
           ),

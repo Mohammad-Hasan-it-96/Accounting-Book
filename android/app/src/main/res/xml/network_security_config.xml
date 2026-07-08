@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  يمنع أي اتصال شبكي بنص صريح (HTTP) من التطبيق. جميع نقاط النهاية (التفعيل
+  والتحديث) تستخدم HTTPS، فهذا دفاع في العمق ضد تسرّب بيانات التفعيل عبر اتصال
+  غير مشفّر. لا يؤثّر على فتح الروابط الخارجية عبر المتصفح (تتم في تطبيق آخر).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

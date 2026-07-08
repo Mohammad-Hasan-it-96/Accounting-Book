@@ -4,18 +4,25 @@ import 'package:file_picker/file_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/helpers/url_helper.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/backup_scheduler_service.dart';
 import '../../core/services/pin_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/services/update_service.dart';
+import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_loading.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/update_dialog.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimens.dart';
+import '../../core/theme/app_text_styles.dart';
 import '../../providers/theme_provider.dart';
 import '../activation/activation_screen.dart';
 import '../groups/groups_screen.dart';
@@ -90,9 +97,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
      if (result.hasUpdate && result.info != null) {
        await UpdateDialog.show(context, result.info!);
      } else if (result.isFailure) {
-       _showSnack(result.error!, isError: true);
+       AppSnackBar.error(context, result.error!);
      } else {
-       _showSnack('✅  أنت تستخدم أحدث إصدار');
+       AppSnackBar.success(context, 'أنت تستخدم أحدث إصدار');
      }
    }
 
@@ -104,7 +111,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
        final path = await provider.dbHelper.exportDatabase(fileName);
        if (!mounted) return;
        if (path == null) {
-         _showSnack('تعذر تصدير النسخة الاحتياطية', isError: true);
+         AppSnackBar.error(context, 'تعذر تصدير النسخة الاحتياطية');
          return;
        }
        await Share.shareXFiles(
@@ -114,11 +121,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
        if (!mounted) return;
        final now = DateTime.now();
        await SettingsService().setLastBackupDate(now);
-       if (mounted) setState(() => _lastBackupDate = now);
-       _showSnack('تم تصدير النسخة الاحتياطية بنجاح');
+       if (!mounted) return;
+       setState(() => _lastBackupDate = now);
+       AppSnackBar.success(context, 'تم تصدير النسخة الاحتياطية بنجاح');
      } catch (e) {
        if (!mounted) return;
-       _showSnack('فشل التصدير: $e', isError: true);
+       AppSnackBar.error(context, 'فشل التصدير: $e');
      }
    }
 
@@ -135,15 +143,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
        final ok = await provider.dbHelper.importDatabase(path);
        if (!mounted) return;
        if (ok) {
-         _showSnack('تم استيراد النسخة الاحتياطية بنجاح');
+         AppSnackBar.success(context, 'تم استيراد النسخة الاحتياطية بنجاح');
          // إعادة تحميل البيانات لتعكس التغييرات
          await _loadInfo();
        } else {
-         _showSnack('فشل الاستيراد', isError: true);
+         AppSnackBar.error(context, 'فشل الاستيراد');
        }
      } catch (e) {
        if (!mounted) return;
-       _showSnack('خطأ في الاستيراد: $e', isError: true);
+       AppSnackBar.error(context, 'خطأ في الاستيراد: $e');
      }
    }
 
@@ -156,11 +164,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _recheckingActivation = false;
       if (result.isSuccess) _isActivated = true;
     });
-    _showSnack(
-      result.message,
-      isError: result.isError,
-      isSuccess: result.isSuccess,
-    );
+    if (result.isError) {
+      AppSnackBar.error(context, result.message);
+    } else if (result.isSuccess) {
+      AppSnackBar.success(context, result.message);
+    } else {
+      AppSnackBar.info(context, result.message);
+    }
   }
 
   // ─── إعداد قفل PIN ────────────────────────────────────────────────────────
@@ -172,6 +182,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     final ctrl = TextEditingController();
     final confirmCtrl = TextEditingController();
+    try {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -179,19 +190,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            AppTextField(
               controller: ctrl,
+              label: 'رمز PIN (4 أو 6 أرقام)',
+              icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
-              maxLength: 4,
+              maxLength: 6,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'رمز PIN (4 أرقام)'),
             ),
-            TextField(
+            Gap.h8,
+            AppTextField(
               controller: confirmCtrl,
+              label: 'تأكيد الرمز',
+              icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
-              maxLength: 4,
+              maxLength: 6,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'تأكيد الرمز'),
             ),
           ],
         ),
@@ -199,18 +213,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('إلغاء')),
-          ElevatedButton(
+          FilledButton(
             onPressed: () {
-              if (ctrl.text.length < 4) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('أدخل 4 أرقام على الأقل')),
-                );
+              // شاشة القفل تُرسل تلقائياً عند 4 أو 6 أرقام فقط؛ نمنع طولاً آخر
+              // (مثل 5) حتى لا يعلق المستخدم بلا زر إرسال.
+              if (ctrl.text.length != 4 && ctrl.text.length != 6) {
+                AppSnackBar.warning(ctx, 'أدخل 4 أو 6 أرقام');
                 return;
               }
               if (ctrl.text != confirmCtrl.text) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('الرمزان غير متطابقين')),
-                );
+                AppSnackBar.warning(ctx, 'الرمزان غير متطابقين');
                 return;
               }
               Navigator.pop(ctx, true);
@@ -224,7 +236,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await PinService().setPin(ctrl.text.trim());
     if (mounted) {
       setState(() => _pinEnabled = true);
-      _showSnack('تم تفعيل قفل PIN بنجاح', isSuccess: true);
+      AppSnackBar.success(context, 'تم تفعيل قفل PIN بنجاح');
+    }
+    } finally {
+      ctrl.dispose();
+      confirmCtrl.dispose();
     }
   }
 
@@ -234,6 +250,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final newCtrl     = TextEditingController();
     final confirmCtrl = TextEditingController();
 
+    try {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -241,26 +258,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            AppTextField(
               controller: currentCtrl,
+              label: 'الرمز الحالي',
+              icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
               maxLength: 6,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'الرمز الحالي'),
             ),
-            TextField(
+            Gap.h8,
+            AppTextField(
               controller: newCtrl,
+              label: 'الرمز الجديد (4 أو 6 أرقام)',
+              icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
               maxLength: 6,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'الرمز الجديد (4 أرقام)'),
             ),
-            TextField(
+            Gap.h8,
+            AppTextField(
               controller: confirmCtrl,
+              label: 'تأكيد الرمز الجديد',
+              icon: Icons.lock_outline,
               keyboardType: TextInputType.number,
               maxLength: 6,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'تأكيد الرمز الجديد'),
             ),
           ],
         ),
@@ -268,27 +290,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('إلغاء')),
-          ElevatedButton(
+          FilledButton(
             onPressed: () async {
               final ok = await PinService().verifyPin(currentCtrl.text.trim());
               if (!ok) {
                 if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('الرمز الحالي غير صحيح')));
+                  AppSnackBar.error(ctx, 'الرمز الحالي غير صحيح');
                 }
                 return;
               }
-              if (newCtrl.text.length < 4) {
+              if (newCtrl.text.length != 4 && newCtrl.text.length != 6) {
                 if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('أدخل 4 أرقام على الأقل')));
+                  AppSnackBar.warning(ctx, 'أدخل 4 أو 6 أرقام');
                 }
                 return;
               }
               if (newCtrl.text != confirmCtrl.text) {
                 if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('الرمزان الجديدان غير متطابقين')));
+                  AppSnackBar.warning(ctx, 'الرمزان الجديدان غير متطابقين');
                 }
                 return;
               }
@@ -301,7 +320,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (result != true || !mounted) return;
     await PinService().changePin(newCtrl.text.trim());
-    _showSnack('تم تغيير رمز PIN بنجاح', isSuccess: true);
+    if (mounted) AppSnackBar.success(context, 'تم تغيير رمز PIN بنجاح');
+    } finally {
+      currentCtrl.dispose();
+      newCtrl.dispose();
+      confirmCtrl.dispose();
+    }
   }
 
   // ─── إعداد مهلة القفل التلقائي ───────────────────────────────────────────
@@ -350,43 +374,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ─── فتح رابط خارجي ───────────────────────────────────────────────────────
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) _showSnack('تعذر فتح الرابط', isError: true);
-    }
-  }
+  Future<void> _openUrl(String url) => UrlHelper.open(context, url);
 
   // ─── نسخ Device ID ────────────────────────────────────────────────────────
   void _copyDeviceId() {
     if (_deviceId == null) return;
     Clipboard.setData(ClipboardData(text: _deviceId!));
-    _showSnack('تم نسخ معرّف الجهاز');
+    AppSnackBar.success(context, 'تم نسخ معرّف الجهاز');
   }
 
   // ─── تأكيد إعادة تعيين التفعيل ────────────────────────────────────────────
   Future<void> _confirmResetActivation() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('إعادة تعيين التفعيل'),
-        content: const Text(
+    final confirm = await AppDialog.confirm(
+      context,
+      title: 'إعادة تعيين التفعيل',
+      message:
           'سيتم إلغاء التفعيل وستحتاج إلى تفعيل التطبيق مجدداً.\nهل تريد المتابعة؟',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('إعادة التعيين'),
-          ),
-        ],
-      ),
+      confirmLabel: 'إعادة التعيين',
+      destructive: true,
     );
-    if (confirm != true || !mounted) return;
+    if (!confirm || !mounted) return;
     await ActivationService().resetActivation();
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
@@ -396,29 +403,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showSnack(String msg, {bool isError = false, bool isSuccess = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: isError
-          ? Colors.red.shade700
-          : isSuccess
-              ? Colors.green.shade700
-              : null,
-      duration: const Duration(seconds: 3),
-    ));
-  }
-
   // ─── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final primary       = Theme.of(context).colorScheme.primary;
+    final isDark        = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات')),
       body: _loadingInfo
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoading()
           : ListView(
               children: [
                 // ──────────────────────────────────────────────────────────
@@ -433,7 +428,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    customerCount: _customerCount,
                  ),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.sm),
 
                 // ──────────────────────────────────────────────────────────
                 // المظهر
@@ -461,11 +456,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                    title: const Text('التحقق من التحديثات'),
                    subtitle: const Text('البحث عن إصدارات جديدة'),
                    trailing: _checkingUpdate
-                       ? const SizedBox(
-                           width: 20,
-                           height: 20,
-                           child: CircularProgressIndicator(strokeWidth: 2),
-                         )
+                       ? const AppLoading.inline()
                        : const Icon(Icons.chevron_left),
                    onTap: _checkingUpdate ? null : _checkUpdates,
                  ),
@@ -512,26 +503,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                  if (_lastBackupDate == null ||
                      DateTime.now().difference(_lastBackupDate!).inDays >= 7)
                    Container(
-                     margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                     margin: const EdgeInsets.fromLTRB(
+                         AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
                      padding: const EdgeInsets.symmetric(
-                         horizontal: 12, vertical: 8),
+                         horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                      decoration: BoxDecoration(
-                       color: Colors.orange.shade50,
-                       border: Border.all(color: Colors.orange.shade200),
-                       borderRadius: BorderRadius.circular(8),
+                       color: isDark
+                           ? Colors.orange.shade900.withValues(alpha: 0.22)
+                           : Colors.orange.shade50,
+                       border: Border.all(
+                           color: isDark
+                               ? Colors.orange.shade700
+                               : Colors.orange.shade200),
+                       borderRadius: AppRadius.smAll,
                      ),
                      child: Row(
                        children: [
                          Icon(Icons.warning_amber_rounded,
-                             color: Colors.orange.shade700, size: 18),
-                         const SizedBox(width: 8),
+                             color: isDark
+                                 ? Colors.orange.shade300
+                                 : Colors.orange.shade700,
+                             size: AppIconSize.md),
+                         const SizedBox(width: AppSpacing.sm),
                          Expanded(
                            child: Text(
                              _lastBackupDate == null
                                  ? 'لم تُؤخذ نسخة احتياطية بعد. احرص على حماية بياناتك!'
                                  : 'آخر نسخة احتياطية منذ ${DateTime.now().difference(_lastBackupDate!).inDays} يوم. يُنصح بأخذ نسخة.',
                              style: TextStyle(
-                                 fontSize: 12, color: Colors.orange.shade900),
+                                 fontSize: AppFontSize.small,
+                                 color: isDark
+                                     ? Colors.orange.shade100
+                                     : Colors.orange.shade900),
                            ),
                          ),
                        ],
@@ -586,26 +589,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // ──────────────────────────────────────────────────────────
                 _SectionHeader(title: 'الدعم الفني'),
                 ListTile(
-                  leading: const Icon(Icons.chat, color: Color(0xFF25D366)),
+                  leading: const Icon(Icons.chat, color: AppColors.whatsApp),
                   title: const Text('واتساب'),
                   subtitle: const Text('تواصل مع المطوّر'),
-                  trailing: const Icon(Icons.open_in_new, size: 16),
+                  trailing: const Icon(Icons.open_in_new, size: AppIconSize.sm),
                   onTap: () => _openUrl(
                       'https://wa.me/${SettingsService.supportWhatsApp}'
                       '?text=${Uri.encodeComponent("مرحباً، أحتاج مساعدة في دفتر الحسابات")}'),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.send, color: Color(0xFF0088CC)),
+                  leading: const Icon(Icons.send, color: AppColors.telegram),
                   title: const Text('تيليغرام'),
                   subtitle: const Text('تواصل مع المطوّر'),
-                  trailing: const Icon(Icons.open_in_new, size: 16),
+                  trailing: const Icon(Icons.open_in_new, size: AppIconSize.sm),
                   onTap: () => _openUrl(SettingsService.supportTelegram),
                 ),
                 ListTile(
                   leading: const Icon(Icons.email_outlined),
                   title: const Text('البريد الإلكتروني'),
                   subtitle: const Text(SettingsService.supportEmail),
-                  trailing: const Icon(Icons.open_in_new, size: 16),
+                  trailing: const Icon(Icons.open_in_new, size: AppIconSize.sm),
                   onTap: () =>
                       _openUrl('mailto:${SettingsService.supportEmail}'),
                 ),
@@ -635,7 +638,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           label: const Text(
                             'مفعّل',
                             style: TextStyle(
-                                color: Colors.white, fontSize: 11),
+                                color: Colors.white, fontSize: AppFontSize.caption),
                           ),
                           backgroundColor: Colors.green.shade600,
                           padding: EdgeInsets.zero,
@@ -644,7 +647,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           label: const Text(
                             'غير مفعّل',
                             style: TextStyle(
-                                color: Colors.white, fontSize: 11),
+                                color: Colors.white, fontSize: AppFontSize.caption),
                           ),
                           backgroundColor: Colors.orange.shade700,
                           padding: EdgeInsets.zero,
@@ -654,11 +657,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // إعادة فحص التفعيل
                 ListTile(
                   leading: _recheckingActivation
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
+                      ? const AppLoading.inline(size: AppIconSize.lg)
                       : const Icon(Icons.refresh),
                   title: const Text('إعادة فحص التفعيل'),
                   subtitle: const Text('التحقق من حالة التفعيل على السيرفر'),
@@ -705,7 +704,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         builder: (_) => const PrivacyPolicyScreen()),
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: AppSpacing.xxxl),
               ],
             ),
     );
@@ -733,10 +732,11 @@ class _AppInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.md, AppSpacing.md, 0),
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           children: [
             // ── أيقونة + اسم التطبيق + الإصدار ─────────────────────────
@@ -747,104 +747,118 @@ class _AppInfoCard extends StatelessWidget {
                   height: 48,
                   decoration: BoxDecoration(
                     color: primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: AppRadius.mdAll,
                   ),
-                  child: Icon(Icons.menu_book, color: primary, size: 26),
+                  child: Icon(Icons.menu_book, color: primary,
+                      size: AppIconSize.lg),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: AppSpacing.lg),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'دفتر حسابات',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 16),
+                        style: AppTextStyles.subtitleBold,
                       ),
                       Text(
                         'الإصدار $version+$buildNumber',
                         style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600),
+                            fontSize: AppFontSize.small,
+                            color: Colors.grey.shade600),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             const Divider(height: 1),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             // ── عدد العملاء والحد المجاني ─────────────────────────────────
             Row(
               children: [
-                Icon(Icons.people_outline, size: 18, color: primary),
-                const SizedBox(width: 8),
+                Icon(Icons.people_outline, size: AppIconSize.md, color: primary),
+                const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'العملاء: $customerCount',
-                        style: TextStyle(fontSize: 13),
+                        style: const TextStyle(fontSize: AppFontSize.body),
                       ),
                       Text(
                         'الحد المجاني: ${AppConstants.trialCustomerLimit} حساب',
                         style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600),
+                            fontSize: AppFontSize.small, color: Colors.grey.shade600),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             const Divider(height: 1),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             // ── معرّف الجهاز ─────────────────────────────────────────────
             Row(
               children: [
-                Icon(Icons.fingerprint, size: 16, color: primary),
-                const SizedBox(width: 6),
+                Icon(Icons.fingerprint, size: AppIconSize.sm, color: primary),
+                const SizedBox(width: AppSpacing.sm),
                 const Text(
                   'معرّف الجهاز',
                   style: TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 12),
+                      fontWeight: FontWeight.bold, fontSize: AppFontSize.small),
                 ),
                 const Spacer(),
-                InkWell(
-                  onTap: onCopy,
-                  borderRadius: BorderRadius.circular(4),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.copy, size: 14, color: primary),
-                        const SizedBox(width: 4),
-                        Text(
-                          'نسخ',
-                          style: TextStyle(fontSize: 12, color: primary),
+                Semantics(
+                  button: true,
+                  label: 'نسخ معرّف الجهاز',
+                  child: InkWell(
+                    onTap: onCopy,
+                    borderRadius: AppRadius.smAll,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: Center(
+                        widthFactor: 1,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: AppSpacing.xxs),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.copy,
+                                  size: AppIconSize.sm, color: primary),
+                              const SizedBox(width: AppSpacing.xs),
+                              Text(
+                                'نسخ',
+                                style: TextStyle(
+                                    fontSize: AppFontSize.small, color: primary),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpacing.sm),
             Container(
               width: double.infinity,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
               decoration: BoxDecoration(
                 color: Colors.grey.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadius.smAll,
               ),
               child: SelectableText(
                 deviceId,
                 style: const TextStyle(
-                    fontFamily: 'monospace', fontSize: 10),
+                    fontFamily: 'monospace', fontSize: AppFontSize.micro),
               ),
             ),
           ],
@@ -862,13 +876,14 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xs),
       child: Text(
         title,
         style: TextStyle(
           color: Theme.of(context).colorScheme.primary,
           fontWeight: FontWeight.bold,
-          fontSize: 13,
+          fontSize: AppFontSize.body,
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/app_dimens.dart';
 
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
@@ -8,7 +9,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('سياسة الخصوصية')),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         children: const [
           _PolicySection(
             title: 'المقدمة',
@@ -76,20 +77,21 @@ class _PolicySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.only(bottom: AppSpacing.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
             style: TextStyle(
-              fontSize: 15,
+              fontSize: AppFontSize.subtitle,
               fontWeight: FontWeight.bold,
               color: Theme.of(context).colorScheme.primary,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(body, style: const TextStyle(fontSize: 14, height: 1.6)),
+          const SizedBox(height: AppSpacing.sm),
+          Text(body,
+              style: const TextStyle(fontSize: AppFontSize.bodyLg, height: 1.6)),
         ],
       ),
     );

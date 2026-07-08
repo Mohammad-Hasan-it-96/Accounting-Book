@@ -11,6 +11,16 @@ import '../../core/helpers/customer_helper.dart';
 import '../../core/helpers/format_helper.dart';
 import '../../core/helpers/statement_helper.dart';
 import '../../core/services/pdf_service.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimens.dart';
+import '../../core/theme/app_durations.dart';
+import '../../core/theme/app_text_styles.dart';
+import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_empty_state.dart';
+import '../../core/widgets/app_error_state.dart';
+import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_loading.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../add_edit_transaction/add_edit_transaction_screen.dart';
 
 class CustomerDetailsScreen extends StatefulWidget {
@@ -31,17 +41,70 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
   List<tx_model.Transaction> _transactions = [];
   double _balance = 0;
   bool _loading = true;
+  bool _loadError = false;
   DateTime? _fromDate;
   DateTime? _toDate;
-  bool _hasChanges  = false;
+  bool _hasChanges = false;
   int _txTypeFilter = 0; // 0=الكل، 1=مطلوب فقط، -1=مدفوع فقط
+  bool _openingEditor = false; // حارس ضد فتح محرّرين بنقرة مزدوجة سريعة
 
   DateTime? _parseTxDate(String? raw) {
     if (raw == null || raw.isEmpty) return null;
     return FormatHelper.parseDate(raw);
   }
 
+  // كل حركة مقرونة بتاريخها المُحلَّل مرّة واحدة عند التحميل — نتفادى إعادة
+  // تحليل التواريخ (DateFormat.parseStrict) في كل build.
+  List<({tx_model.Transaction tx, DateTime? date})> _processed = [];
+  // تخزين مؤقّت لنتيجة الفلترة/الترتيب مفهرَس بتوقيع حالة الفلاتر، حتى لا
+  // نُعيد الفلترة والترتيب في كل إعادة رسم (مثلاً عند فتح قائمة أو التمرير).
+  List<tx_model.Transaction>? _filteredCache;
+  String _filterSig = '';
+  // الرصيد التراكمي المطلق (من الأقدم للأحدث) لكل حركة بمعرّفها، محسوب على
+  // *كامل* مجموعة الحركات لا المجموعة المفلترة — حتى يتطابق «الرصيد بعدها» مع
+  // الرصيد الإجمالي في الترويسة حتى عند تفعيل فلتر تاريخ/نوع.
+  final Map<int, double> _absoluteRunning = {};
+
   List<tx_model.Transaction> get _filteredTransactions {
+    final sig =
+        '${_fromDate?.millisecondsSinceEpoch}|${_toDate?.millisecondsSinceEpoch}'
+        '|$_txTypeFilter|${_processed.length}';
+    final cached = _filteredCache;
+    if (cached != null && sig == _filterSig) return cached;
+    final result = _computeFiltered();
+    _filteredCache = result;
+    _filterSig = sig;
+    return result;
+  }
+
+  // يحسب الرصيد التراكمي المطلق لكل حركة (بالترتيب الزمني تصاعدياً) على كامل
+  // الحركات. الحركات بلا تاريخ تُعتبر الأقدم؛ التعادل يُكسر بمعرّف الحركة.
+  void _computeAbsoluteRunning() {
+    _absoluteRunning.clear();
+    final ordered = List<({tx_model.Transaction tx, DateTime? date})>.from(
+      _processed,
+    )..sort((a, b) {
+        final da = a.date;
+        final db = b.date;
+        if (da != null && db != null) {
+          final c = da.compareTo(db);
+          if (c != 0) return c;
+        } else if (da == null && db != null) {
+          return -1; // بلا تاريخ = الأقدم
+        } else if (da != null && db == null) {
+          return 1;
+        }
+        return (a.tx.id ?? 0).compareTo(b.tx.id ?? 0);
+      });
+    double running = 0;
+    for (final item in ordered) {
+      running += item.tx.inFlag == 1 ? item.tx.out : -item.tx.out;
+      final id = item.tx.id;
+      if (id != null) _absoluteRunning[id] = running;
+    }
+  }
+
+  List<tx_model.Transaction> _computeFiltered() {
     final from = _fromDate;
     final to = _toDate == null
         ? null
@@ -55,53 +118,45 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
             999,
           );
 
-    // Create a list of transactions with their parsed date (or null)
-    final List<Map<String, dynamic>> processed = [];
-    for (final tx in _transactions) {
-      final parsed = _parseTxDate(tx.date);
-      processed.add({'tx': tx, 'date': parsed});
-    }
+    // نستخدم التواريخ المُحلَّلة مسبقاً (_processed) بدل إعادة تحليلها هنا.
+    final processed = _processed;
 
-    // Determine if we have an active date filter
+    // فلتر التاريخ: بلا فلتر → ضمّ الكل؛ مع فلتر → تاريخ صالح ضمن المدى
     final bool hasActiveFilter = from != null || to != null;
-    final List<Map<String, dynamic>> filtered = processed.where((item) {
+    final filtered = processed.where((item) {
       if (!hasActiveFilter) {
-        // No date filter: include regardless of parse success
-        return true;
-      } else {
-        // Has date filter: we require a valid date and within range
-        if (item['date'] == null) return false;
-        if (from != null && item['date'].isBefore(from)) return false;
-        if (to != null && item['date'].isAfter(to)) return false;
+        // بلا فلتر تاريخ: يُضمّ بغضّ النظر عن نجاح التحليل
         return true;
       }
+      // مع فلتر تاريخ: يلزم تاريخ صالح وضمن المدى
+      final date = item.date;
+      if (date == null) return false;
+      if (from != null && date.isBefore(from)) return false;
+      if (to != null && date.isAfter(to)) return false;
+      return true;
     }).toList();
 
-    // Sort: first by date descending (null dates last), then maintain original order for equal dates
+    // ترتيب: حسب التاريخ تنازلياً (بلا تاريخ في النهاية)، مع إبقاء ترتيب المتساويين
     filtered.sort((a, b) {
-      final dateA = a['date'];
-      final dateB = b['date'];
-      // If both have dates, compare by date descending
+      final dateA = a.date;
+      final dateB = b.date;
+      // كلاهما بتاريخ → مقارنة تنازلية
       if (dateA != null && dateB != null) {
-        return dateB.compareTo(dateA); // descending
+        return dateB.compareTo(dateA); // تنازلي
       }
-      // If only a has date, a comes first
+      // ذو التاريخ يسبق الذي بلا تاريخ
       if (dateA != null) return -1;
-      // If only b has date, b comes first
       if (dateB != null) return 1;
-      // Both null: maintain original order (do nothing)
+      // كلاهما بلا تاريخ: أبقِ الترتيب الأصلي
       return 0;
     });
 
     // فلتر النوع
     final typeFiltered = _txTypeFilter == 0
         ? filtered
-        : filtered
-            .where((item) =>
-                (item['tx'] as tx_model.Transaction).inFlag == _txTypeFilter)
-            .toList();
+        : filtered.where((item) => item.tx.inFlag == _txTypeFilter).toList();
 
-    return typeFiltered.map((e) => e['tx'] as tx_model.Transaction).toList();
+    return typeFiltered.map((e) => e.tx).toList();
   }
 
   Future<void> _pickFromDate() async {
@@ -163,13 +218,11 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                   ? 'سيتم تسجيل دفعة بقيمة ${_balance.abs()} ${widget.currency.displayName} لتصفير الرصيد.'
                   : 'سيتم تسجيل مبلغ مطلوب بقيمة ${_balance.abs()} ${widget.currency.displayName} لتصفير الرصيد.',
             ),
-            const SizedBox(height: 12),
-            TextField(
+            Gap.h12,
+            AppTextField(
               controller: remarksCtrl,
-              decoration: const InputDecoration(
-                labelText: 'ملاحظة (اختياري)',
-                prefixIcon: Icon(Icons.notes_outlined),
-              ),
+              label: 'ملاحظة (اختياري)',
+              icon: Icons.notes_outlined,
             ),
           ],
         ),
@@ -190,14 +243,24 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
 
     final dbHelper = context.read<AppProvider>().dbHelper;
     final repo = TransactionRepository(dbHelper);
-    await repo.insert(tx_model.Transaction(
-      cusId:   widget.customer.id!,
-      inFlag:  isDebt ? -1 : 1,
-      out:     amount,
-      date:    DateTime.now().toIso8601String().substring(0, 10),
-      currId:  widget.currency.id!,
-      remarks: remarksCtrl.text.trim().isEmpty ? 'تسوية رصيد' : remarksCtrl.text.trim(),
-    ));
+    try {
+      await repo.insert(
+        tx_model.Transaction(
+          cusId: widget.customer.id!,
+          inFlag: isDebt ? -1 : 1,
+          out: amount,
+          date: DateTime.now().toIso8601String().substring(0, 10),
+          currId: widget.currency.id!,
+          remarks: remarksCtrl.text.trim().isEmpty
+              ? 'تسوية رصيد'
+              : remarksCtrl.text.trim(),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'تعذر تسوية الرصيد');
+      return;
+    }
     _hasChanges = true;
     await _load();
   }
@@ -235,22 +298,30 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     try {
       final dbHelper = context.read<AppProvider>().dbHelper;
       final repo = TransactionRepository(dbHelper);
-      final txList = await repo.getByCustomerAndCurrency(
-        widget.customer.id!,
-        widget.currency.id!,
-      );
-      final balance = await repo.getBalance(
-        widget.customer.id!,
-        widget.currency.id!,
-      );
+      // القراءتان مستقلّتان → أطلقهما معاً بدل التسلسل
+      final results = await Future.wait([
+        repo.getByCustomerAndCurrency(
+          widget.customer.id!,
+          widget.currency.id!,
+        ),
+        repo.getBalance(widget.customer.id!, widget.currency.id!),
+      ]);
       if (!mounted) return;
-      _transactions = txList;
-      _balance = balance;
+      _transactions = results[0] as List<tx_model.Transaction>;
+      _balance = results[1] as double;
+      _loadError = false;
     } catch (_) {
       if (!mounted) return;
       _transactions = [];
       _balance = 0;
+      _loadError = true;
     }
+    // حلّل تواريخ الحركات مرّة واحدة، وأبطِل الذاكرة المؤقّتة للفلترة.
+    _processed = [
+      for (final tx in _transactions) (tx: tx, date: _parseTxDate(tx.date)),
+    ];
+    _filteredCache = null;
+    _computeAbsoluteRunning();
     if (!mounted) return;
     setState(() => _loading = false);
   }
@@ -258,23 +329,14 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
   // ─── حذف حركة ─────────────────────────────────────────────────────────────
   Future<void> _deleteTransaction(tx_model.Transaction tx) async {
     final dbHelper = context.read<AppProvider>().dbHelper;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('تأكيد الحذف'),
-        content: const Text('هل تريد حذف هذه الحركة؟'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('إلغاء')),
-          TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('حذف')),
-        ],
-      ),
+    final confirm = await AppDialog.confirm(
+      context,
+      title: 'حذف الحركة',
+      message: 'هل تريد حذف هذه الحركة؟ لا يمكن التراجع عن هذا الإجراء.',
+      confirmLabel: 'حذف',
+      destructive: true,
     );
-    if (confirm != true) return;
+    if (!confirm) return;
     if (!mounted) return;
     await TransactionRepository(dbHelper).delete(tx.id!);
     _hasChanges = true;
@@ -293,15 +355,54 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     );
   }
 
+  Future<void> _exportPdf() async {
+    try {
+      await PdfService.shareStatement(
+        customer: widget.customer,
+        currency: widget.currency,
+        transactions: _transactions,
+        balance: _balance,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'تعذر إنشاء ملف PDF');
+    }
+  }
+
+  Widget _buildEmptyTransactions() {
+    final filtered = _fromDate != null || _toDate != null || _txTypeFilter != 0;
+    return AppEmptyState(
+      icon: filtered ? Icons.filter_alt_off_outlined : Icons.receipt_long,
+      title: filtered ? 'لا توجد حركات مطابقة للفلتر' : 'لا توجد حركات بعد',
+      description: filtered
+          ? 'جرّب تعديل التواريخ أو نوع الحركة'
+          : 'اضغط زر ( + ) لإضافة أول حركة',
+      actionLabel: filtered ? 'مسح الفلتر' : null,
+      actionIcon: filtered ? Icons.clear : null,
+      onAction: filtered
+          ? () => setState(() {
+              _fromDate = null;
+              _toDate = null;
+              _txTypeFilter = 0;
+            })
+          : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final visibleTransactions = _filteredTransactions;
     final summary = _calculateSummary(visibleTransactions);
     final balanceColor = _balance == 0
-        ? Colors.grey
+        ? Colors.grey.shade600
         : _balance > 0
-            ? const Color(0xFF2E7D32)
-            : const Color(0xFFC62828);
+        ? AppColors.income
+        : AppColors.expense;
+    final balanceStatus = _balance == 0
+        ? 'مسوّى'
+        : _balance > 0
+        ? 'مطلوب'
+        : 'مدفوع';
 
     return PopScope<bool>(
       canPop: false,
@@ -310,380 +411,467 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
         Navigator.pop(context, _hasChanges);
       },
       child: Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context, _hasChanges),
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context, _hasChanges),
+          ),
+          title: Text(widget.customer.name),
+          actions: [
+            if (_balance != 0)
+              IconButton(
+                icon: const Icon(Icons.done_all),
+                tooltip: 'تسوية الرصيد',
+                onPressed: _settleBalance,
+              ),
+            IconButton(
+              icon: const Icon(Icons.copy),
+              tooltip: 'نسخ',
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: _buildStatement()));
+                AppSnackBar.success(context, 'تم نسخ كشف الحساب');
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.share),
+              tooltip: 'مشاركة',
+              onPressed: () => Share.share(_buildStatement()),
+            ),
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              tooltip: 'تصدير PDF',
+              onPressed: _exportPdf,
+            ),
+          ],
         ),
-        title: Text(widget.customer.name),
-        actions: [
-           if (_balance != 0)
-             IconButton(
-               icon: const Icon(Icons.done_all),
-               tooltip: 'تسوية الرصيد',
-               onPressed: _settleBalance,
-             ),
-           IconButton(
-             icon: const Icon(Icons.copy),
-             tooltip: 'نسخ',
-             color: Theme.of(context).primaryColor,
-             onPressed: () {
-               Clipboard.setData(ClipboardData(text: _buildStatement()));
-               ScaffoldMessenger.of(context).showSnackBar(
-                   const SnackBar(
-                     content: Text('تم نسخ كشف الحساب'),
-                     behavior: SnackBarBehavior.floating,
-                   ));
-             },
-           ),
-           IconButton(
-             icon: const Icon(Icons.share),
-             tooltip: 'مشاركة',
-             color: Theme.of(context).primaryColor,
-             onPressed: () => Share.share(_buildStatement()),
-           ),
-           IconButton(
-             icon: const Icon(Icons.picture_as_pdf_outlined),
-             tooltip: 'تصدير PDF',
-             color: Theme.of(context).primaryColor,
-             onPressed: () async {
-               final messenger = ScaffoldMessenger.of(context);
-               try {
-                 await PdfService.shareStatement(
-                   customer: widget.customer,
-                   currency: widget.currency,
-                   transactions: _transactions,
-                   balance: _balance,
-                 );
-               } catch (_) {
-                 messenger.showSnackBar(
-                   const SnackBar(
-                     content: Text('تعذر إنشاء ملف PDF'),
-                     behavior: SnackBarBehavior.floating,
-                   ),
-                 );
-               }
-             },
-           ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // ─── بطاقة معلومات العميل ────────────────────────────
-                _CustomerHeader(
-                  customer: widget.customer,
-                  currency: widget.currency,
-                  balance: _balance,
-                  txCount: _transactions.length,
-                  balanceColor: balanceColor,
-                ),
-                _SummarySection(
-                  summary: summary,
-                  currencyName: widget.currency.displayName,
-                  balanceColor: balanceColor,
-                ),
-                if (_fromDate != null || _toDate != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        'ملخص مفلتر'
-                        '${_fromDate != null ? ': من ${FormatHelper.formatDateFromDateTime(_fromDate!)}' : ''}'
-                        '${_toDate != null ? ' — ${FormatHelper.formatDateFromDateTime(_toDate!)}' : ''}',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+        body: _loading
+            ? const AppLoading()
+            : _loadError
+            ? AppErrorState(
+                title: 'تعذر تحميل الحركات',
+                message: 'حدث خطأ أثناء جلب البيانات.',
+                onRetry: _load,
+              )
+            : Column(
+                children: [
+                  // ─── معلومات العميل ─────────────────────────────────
+                  _CustomerHeader(customer: widget.customer),
+                  // ─── بطاقة الرصيد (بارزة) ───────────────────────────
+                  _BalanceCard(
+                    balance: _balance,
+                    currencyName: widget.currency.displayName,
+                    balanceColor: balanceColor,
+                    status: balanceStatus,
+                    txCount: _transactions.length,
+                  ),
+                  _SummarySection(
+                    summary: summary,
+                    currencyName: widget.currency.displayName,
+                    balanceColor: balanceColor,
+                  ),
+                  if (_fromDate != null || _toDate != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'ملخص مفلتر'
+                          '${_fromDate != null ? ': من ${FormatHelper.formatDateFromDateTime(_fromDate!)}' : ''}'
+                          '${_toDate != null ? ' — ${FormatHelper.formatDateFromDateTime(_toDate!)}' : ''}',
+                          style: TextStyle(
+                            fontSize: AppFontSize.caption,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _pickFromDate,
-                          child: Text(
-                            _fromDate == null
-                                ? 'من تاريخ'
-                                : 'من ${FormatHelper.formatDateFromDateTime(_fromDate!)}',
-                            overflow: TextOverflow.ellipsis,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      AppSpacing.xs,
+                      AppSpacing.md,
+                      AppSpacing.xxs,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _pickFromDate,
+                            child: Text(
+                              _fromDate == null
+                                  ? 'من تاريخ'
+                                  : 'من ${FormatHelper.formatDateFromDateTime(_fromDate!)}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _pickToDate,
-                          child: Text(
-                            _toDate == null
-                                ? 'إلى تاريخ'
-                                : 'إلى ${FormatHelper.formatDateFromDateTime(_toDate!)}',
-                            overflow: TextOverflow.ellipsis,
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _pickToDate,
+                            child: Text(
+                              _toDate == null
+                                  ? 'إلى تاريخ'
+                                  : 'إلى ${FormatHelper.formatDateFromDateTime(_toDate!)}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
-                      ),
-                      if (_fromDate != null || _toDate != null)
-                        IconButton(
-                          tooltip: 'مسح الفلتر',
-                          onPressed: _clearDateFilter,
-                          icon: const Icon(Icons.clear),
+                        if (_fromDate != null || _toDate != null)
+                          IconButton(
+                            tooltip: 'مسح الفلتر',
+                            onPressed: _clearDateFilter,
+                            icon: const Icon(Icons.clear),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // ─── فلتر نوع الحركة ─────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      0,
+                      AppSpacing.md,
+                      AppSpacing.xs,
+                    ),
+                    child: Row(
+                      children: [
+                        _TypeChip(
+                          label: 'الكل',
+                          selected: _txTypeFilter == 0,
+                          onTap: () => setState(() => _txTypeFilter = 0),
                         ),
-                    ],
+                        const SizedBox(width: AppSpacing.sm),
+                        _TypeChip(
+                          label: 'مطلوب',
+                          selected: _txTypeFilter == 1,
+                          color: AppColors.income,
+                          onTap: () => setState(() => _txTypeFilter = 1),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        _TypeChip(
+                          label: 'مدفوع',
+                          selected: _txTypeFilter == -1,
+                          color: AppColors.expense,
+                          onTap: () => setState(() => _txTypeFilter = -1),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                // ─── فلتر نوع الحركة ─────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                  child: Row(
-                    children: [
-                      _TypeChip(
-                        label: 'الكل',
-                        selected: _txTypeFilter == 0,
-                        onTap: () => setState(() => _txTypeFilter = 0),
-                      ),
-                      const SizedBox(width: 6),
-                      _TypeChip(
-                        label: 'مطلوب',
-                        selected: _txTypeFilter == 1,
-                        color: const Color(0xFF2E7D32),
-                        onTap: () => setState(() => _txTypeFilter = 1),
-                      ),
-                      const SizedBox(width: 6),
-                      _TypeChip(
-                        label: 'مدفوع',
-                        selected: _txTypeFilter == -1,
-                        color: const Color(0xFFC62828),
-                        onTap: () => setState(() => _txTypeFilter = -1),
-                      ),
-                    ],
-                  ),
-                ),
-                // ─── عنوان قسم الحركات ──────────────────────────────
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.receipt_long, size: 16,
-                          color: Colors.grey),
-                      const SizedBox(width: 6),
-                      Text(
-                        'الحركات (${visibleTransactions.length})',
-                        style: TextStyle(
-                            fontSize: 13,
+                  // ─── عنوان قسم الحركات ──────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.sm,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.receipt_long,
+                          size: AppIconSize.sm,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          'الحركات (${visibleTransactions.length})',
+                          style: TextStyle(
+                            fontSize: AppFontSize.body,
                             color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  // ─── قائمة الحركات (الأحدث أولاً) ──────────────────
+                  Expanded(
+                    child: visibleTransactions.isEmpty
+                        ? _buildEmptyTransactions()
+                        : RefreshIndicator(
+                            onRefresh: _load,
+                            child: ListView.builder(
+                                  itemCount: visibleTransactions.length,
+                                  itemBuilder: (_, i) => _TransactionTile(
+                                    tx: visibleTransactions[i],
+                                    currencyName: widget.currency.displayName,
+                                    // رصيد مطلق محسوب على كامل الحركات (يتطابق
+                                    // مع الترويسة ولا يتأثر بالفلترة).
+                                    runningBalance:
+                                        _absoluteRunning[visibleTransactions[i].id] ??
+                                            0,
+                                    onEdit: () async {
+                                      final changed =
+                                          await Navigator.push<bool>(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  AddEditTransactionScreen(
+                                                    customer: widget.customer,
+                                                    currency: widget.currency,
+                                                    transaction:
+                                                        visibleTransactions[i],
+                                                  ),
+                                            ),
+                                          );
+                                      if (changed == true) {
+                                        _hasChanges = true;
+                                        await _load();
+                                      }
+                                    },
+                                    onDelete: () => _deleteTransaction(
+                                      visibleTransactions[i],
+                                    ),
+                                  ),
+                                ),
+                          ),
+                  ),
+                ],
+              ),
+        floatingActionButton: FloatingActionButton(
+          backgroundColor: Theme.of(context).primaryColor,
+          tooltip: 'إضافة حركة',
+          onPressed: () async {
+            if (_openingEditor) return;
+            _openingEditor = true;
+            try {
+              final changed = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddEditTransactionScreen(
+                    customer: widget.customer,
+                    currency: widget.currency,
                   ),
                 ),
-                const Divider(height: 1),
-                // ─── قائمة الحركات (الأحدث أولاً) ──────────────────
-                Expanded(
-                  child: visibleTransactions.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.receipt_long,
-                                  size: 48, color: Colors.grey.shade300),
-                              const SizedBox(height: 8),
-                              Text('لا توجد حركات',
-                                  style: TextStyle(
-                                      color: Colors.grey.shade500)),
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _load,
-                          child: Builder(builder: (context) {
-                            // حساب الرصيد الجاري (من الأقدم إلى الأحدث)
-                            final reversed = visibleTransactions.reversed.toList();
-                            double running = 0;
-                            final runningBalances = reversed.map((tx) {
-                              running += tx.inFlag == 1 ? tx.out : -tx.out;
-                              return running;
-                            }).toList();
-                            final balancesForDisplay = runningBalances.reversed.toList();
-
-                            return ListView.builder(
-                              itemCount: visibleTransactions.length,
-                              itemBuilder: (_, i) => _TransactionTile(
-                                tx: visibleTransactions[i],
-                                currencyName: widget.currency.displayName,
-                                runningBalance: balancesForDisplay[i],
-                                onEdit: () async {
-                                  final changed = await Navigator.push<bool>(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => AddEditTransactionScreen(
-                                        customer: widget.customer,
-                                        currency: widget.currency,
-                                        transaction: visibleTransactions[i],
-                                      ),
-                                    ),
-                                  );
-                                  if (changed == true) {
-                                    _hasChanges = true;
-                                    await _load();
-                                  }
-                                },
-                                onDelete: () =>
-                                    _deleteTransaction(visibleTransactions[i]),
-                              ),
-                            );
-                          }),
-                        ),
-                ),
-              ],
-            ),
-       floatingActionButton: FloatingActionButton(
-         backgroundColor: Theme.of(context).primaryColor,
-         tooltip: 'إضافة حركة',
-         onPressed: () async {
-           final changed = await Navigator.push<bool>(
-             context,
-             MaterialPageRoute(
-               builder: (_) => AddEditTransactionScreen(
-                 customer: widget.customer,
-                 currency: widget.currency,
-               ),
-             ),
-           );
-           if (changed == true) {
-             _hasChanges = true;
-             await _load();
-           }
-         },
-         child: const Icon(Icons.add, size: 30),
-       ),
+              );
+              if (changed == true) {
+                _hasChanges = true;
+                await _load();
+              }
+            } finally {
+              _openingEditor = false;
+            }
+          },
+          child: const Icon(Icons.add, size: AppIconSize.xl),
+        ),
       ),
     );
   }
 }
 
-// ─── بطاقة معلومات العميل ────────────────────────────────────────────────────
+// ─── معلومات العميل ──────────────────────────────────────────────────────────
 class _CustomerHeader extends StatelessWidget {
   final Customer customer;
-  final Currency currency;
-  final double balance;
-  final int txCount;
-  final Color balanceColor;
 
-  const _CustomerHeader({
-    required this.customer,
-    required this.currency,
+  const _CustomerHeader({required this.customer});
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final groupName = safeGroupName(customer);
+    final hasPhone = customer.gsm != null && customer.gsm!.isNotEmpty;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.cardDark : Colors.white,
+        borderRadius: AppRadius.mdAll,
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: primary.withValues(alpha: 0.12),
+            child: Text(
+              customer.name.isNotEmpty ? customer.name[0] : '؟',
+              style: TextStyle(
+                color: primary,
+                fontWeight: FontWeight.bold,
+                fontSize: AppFontSize.title,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  customer.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.titleBold,
+                ),
+                if (hasPhone) ...[
+                  const SizedBox(height: AppSpacing.xxs),
+                  _InfoLine(icon: Icons.phone_outlined, text: customer.gsm!),
+                ],
+                if (groupName != null) ...[
+                  const SizedBox(height: AppSpacing.xxs),
+                  _InfoLine(icon: Icons.folder_outlined, text: groupName),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// سطر معلومة ثانوية (أيقونة + نص)
+class _InfoLine extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _InfoLine({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: AppIconSize.sm, color: Colors.grey.shade500),
+        const SizedBox(width: AppSpacing.xs),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: AppFontSize.body,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── بطاقة الرصيد (بارزة) ────────────────────────────────────────────────────
+class _BalanceCard extends StatelessWidget {
+  final double balance;
+  final String currencyName;
+  final Color balanceColor;
+  final String status;
+  final int txCount;
+
+  const _BalanceCard({
     required this.balance,
-    required this.txCount,
+    required this.currencyName,
     required this.balanceColor,
+    required this.status,
+    required this.txCount,
   });
 
   @override
   Widget build(BuildContext context) {
-    final groupName = safeGroupName(customer);
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-      padding: const EdgeInsets.all(16),
-       decoration: BoxDecoration(
-         color: balanceColor.withValues(alpha: 0.07),
-         borderRadius: BorderRadius.circular(12),
-         border: Border.all(color: balanceColor.withValues(alpha: 0.25)),
-         boxShadow: [
-           BoxShadow(
-             color: Colors.black.withValues(alpha: 0.05),
-             blurRadius: 4,
-             offset: Offset(0, 2),
-           ),
-         ],
-       ),
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: balanceColor,
+        borderRadius: AppRadius.mdAll,
+        boxShadow: [
+          BoxShadow(
+            color: balanceColor.withValues(alpha: 0.35),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ─── الاسم ────────────────────────────────────────────────
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: balanceColor.withValues(alpha: 0.15),
-                child: Text(
-                  customer.name.isNotEmpty ? customer.name[0] : '؟',
-                  style: TextStyle(
-                      color: balanceColor, fontWeight: FontWeight.bold),
+              Text(
+                'الرصيد الحالي',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: AppFontSize.small,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      customer.name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    if (customer.gsm != null && customer.gsm!.isNotEmpty)
-                      Text(
-                        customer.gsm!,
-                        style: TextStyle(
-                            color: Colors.grey.shade600, fontSize: 13),
-                      ),
-                    if (groupName != null)
-                      Text(
-                        'المجموعة: $groupName',
-                        style: TextStyle(
-                            color: Colors.grey.shade600, fontSize: 12),
-                      ),
-                  ],
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xxs,
+                ),
+                decoration: ShapeDecoration(
+                  color: Colors.white.withValues(alpha: 0.22),
+                  shape: const StadiumBorder(),
+                ),
+                child: Text(
+                  status,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: AppFontSize.caption,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          // ─── الرصيد + عدد الحركات ────────────────────────────────
+          const SizedBox(height: AppSpacing.sm),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
-              // الرصيد
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('الرصيد الحالي',
-                      style: TextStyle(
-                          fontSize: 11, color: Colors.grey.shade500)),
-                  const SizedBox(height: 2),
-                   Text(
-                     '${FormatHelper.formatAmount(balance)} ${currency.displayName}',
-                     style: TextStyle(
-                         color: balanceColor,
-                         fontSize: 28,
-                         fontWeight: FontWeight.bold),
-                   ),
-                ],
-              ),
-              // عدد الحركات
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
+              Flexible(
+                child: Text(
+                  FormatHelper.formatAmount(balance),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: AppFontSize.display,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.receipt_long,
-                        size: 14, color: Colors.grey.shade600),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$txCount حركة',
-                      style: TextStyle(
-                          fontSize: 13, color: Colors.grey.shade700),
-                    ),
-                  ],
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                currencyName,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: AppFontSize.subtitle,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Icon(
+                Icons.receipt_long,
+                size: AppIconSize.sm,
+                color: Colors.white.withValues(alpha: 0.85),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                '$txCount حركة',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: AppFontSize.small,
                 ),
               ),
             ],
@@ -713,21 +901,39 @@ class _TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isIn = tx.inFlag == 1;
-    final color = isIn ? const Color(0xFF2E7D32) : const Color(0xFFC62828);
+    final color = isIn ? AppColors.income : AppColors.expense;
     final label = BalanceHelper.transactionLabel(tx.inFlag);
     final hasRemarks = tx.remarks != null && tx.remarks!.isNotEmpty;
+    final runningColor = runningBalance == 0
+        ? Colors.grey.shade600
+        : runningBalance > 0
+        ? AppColors.income
+        : AppColors.expense;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.mdAll,
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.md,
+          AppSpacing.xs,
+          AppSpacing.md,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // ─── أيقونة النوع ─────────────────────────────────────
             Container(
-              width: 38,
-              height: 38,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
@@ -735,114 +941,144 @@ class _TransactionTile extends StatelessWidget {
               child: Icon(
                 isIn ? Icons.arrow_downward : Icons.arrow_upward,
                 color: color,
-                size: 18,
+                size: AppIconSize.lg,
               ),
             ),
-            const SizedBox(width: 10),
-            // ─── التفاصيل (نوع + تاريخ + ملاحظة) ────────────────
+            const SizedBox(width: AppSpacing.md),
+            // ─── التفاصيل (نوع + تاريخ + ملاحظة + رصيد جارٍ) ──────
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // نوع الحركة كـ badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                  // النوع كـ badge + التاريخ بجانبه
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xxs,
+                        ),
+                        decoration: ShapeDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          shape: const StadiumBorder(),
+                        ),
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: AppFontSize.caption,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (tx.date != null) ...[
+                        const SizedBox(width: AppSpacing.sm),
+                        Flexible(
+                          child: Text(
+                            FormatHelper.formatDate(tx.date),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: AppFontSize.small,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: 3),
-                   // التاريخ
-                   if (tx.date != null)
-                     Text(
-                       FormatHelper.formatDate(tx.date),
-                       style: TextStyle(
-                           fontSize: 13, color: Colors.grey.shade500),
-                     ),
                   // الملاحظة
                   if (hasRemarks) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: AppSpacing.xs),
                     Text(
-                       tx.remarks!,
-                       style: TextStyle(
-                           fontSize: 12, color: Colors.grey.shade600),
-                       maxLines: 1,
-                       overflow: TextOverflow.ellipsis,
+                      tx.remarks!,
+                      style: TextStyle(
+                        fontSize: AppFontSize.small,
+                        color: Colors.grey.shade600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
+                  const SizedBox(height: AppSpacing.xs),
+                  // الرصيد الجاري بعد هذه الحركة
+                  Text(
+                    'الرصيد بعدها: ${FormatHelper.formatAmount(runningBalance)}',
+                    style: TextStyle(
+                      fontSize: AppFontSize.caption,
+                      color: runningColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            // ─── المبلغ + أزرار ───────────────────────────────────
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                 // المبلغ — واضح وكبير
-                 Text(
-                   FormatHelper.formatAmount(tx.out),
-                   style: TextStyle(
-                     color: color,
-                     fontSize: 19,
-                     fontWeight: FontWeight.bold,
-                     letterSpacing: 0.3,
-                   ),
-                 ),
-                Text(
-                  currencyName,
-                  style: TextStyle(
-                      fontSize: 10, color: Colors.grey.shade400),
-                ),
-                const SizedBox(height: 2),
-                // الرصيد الجاري
-                Text(
-                  'رصيد: ${FormatHelper.formatAmount(runningBalance)}',
-                  style: TextStyle(
-                      fontSize: 10,
-                      color: runningBalance == 0
-                          ? Colors.grey
-                          : runningBalance > 0
-                              ? const Color(0xFF2E7D32)
-                              : const Color(0xFFC62828)),
-                ),
-                const SizedBox(height: 2),
-                // أزرار تعديل وحذف
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 30,
-                      height: 30,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Icon(Icons.edit_outlined,
-                            size: 16, color: Colors.grey.shade500),
-                        onPressed: onEdit,
-                        tooltip: 'تعديل',
-                      ),
+            const SizedBox(width: AppSpacing.sm),
+            // ─── المبلغ (بارز) ───────────────────────────────────
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    FormatHelper.formatAmount(tx.out),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: AppFontSize.title,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.3,
                     ),
-                    SizedBox(
-                      width: 30,
-                      height: 30,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.delete_outline,
-                            size: 16, color: Colors.red),
-                        onPressed: onDelete,
-                        tooltip: 'حذف',
-                      ),
+                  ),
+                  Text(
+                    currencyName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: AppFontSize.micro,
+                      color: Colors.grey.shade600,
                     ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            // ─── قائمة الإجراءات ─────────────────────────────────
+            PopupMenuButton<String>(
+              icon: Icon(
+                Icons.more_vert,
+                size: AppIconSize.md,
+                color: Colors.grey.shade400,
+              ),
+              tooltip: 'خيارات',
+              onSelected: (v) {
+                if (v == 'edit') onEdit();
+                if (v == 'delete') onDelete();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem<String>(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: AppIconSize.md),
+                      SizedBox(width: AppSpacing.sm),
+                      Text('تعديل'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        size: AppIconSize.md,
+                        color: Colors.red,
+                      ),
+                      SizedBox(width: AppSpacing.sm),
+                      Text('حذف', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -870,22 +1106,39 @@ class _TypeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = color ?? Theme.of(context).colorScheme.primary;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: BoxDecoration(
-          color: selected ? c.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? c : Colors.grey.shade300),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: selected ? c : Colors.grey.shade600,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+    // زر اختيار: دور «button» + حالة الاختيار للقارئ، ومساحة لمس ≥ 48dp
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Center(
+            widthFactor: 1,
+            child: AnimatedContainer(
+              duration: AppDurations.fast,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.xs,
+              ),
+              decoration: ShapeDecoration(
+                color:
+                    selected ? c.withValues(alpha: 0.15) : Colors.transparent,
+                shape: StadiumBorder(
+                  side: BorderSide(color: selected ? c : Colors.grey.shade300),
+                ),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: AppFontSize.small,
+                  color: selected ? c : Colors.grey.shade600,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -920,10 +1173,15 @@ class _SummarySection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-      padding: const EdgeInsets.all(10),
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.md,
+        AppSpacing.xs,
+      ),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.mdAll,
         color: Colors.grey.withValues(alpha: 0.06),
       ),
       child: Row(
@@ -932,16 +1190,18 @@ class _SummarySection extends StatelessWidget {
             child: _SummaryValue(
               title: 'إجمالي مطلوب',
               value: FormatHelper.formatAmount(summary.totalIn),
-              color: const Color(0xFF2E7D32),
+              color: AppColors.income,
             ),
           ),
+          const _SummaryDivider(),
           Expanded(
             child: _SummaryValue(
               title: 'إجمالي مدفوع',
               value: FormatHelper.formatAmount(summary.totalOut),
-              color: const Color(0xFFC62828),
+              color: AppColors.expense,
             ),
           ),
+          const _SummaryDivider(),
           Expanded(
             child: _SummaryValue(
               title: 'الرصيد النهائي',
@@ -952,6 +1212,21 @@ class _SummarySection extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// فاصل رأسي خفيف بين قيم الملخّص
+class _SummaryDivider extends StatelessWidget {
+  const _SummaryDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 30,
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      color: Colors.grey.withValues(alpha: 0.2),
     );
   }
 }
@@ -974,9 +1249,12 @@ class _SummaryValue extends StatelessWidget {
       children: [
         Text(
           title,
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+          style: TextStyle(
+            fontSize: AppFontSize.caption,
+            color: Colors.grey.shade600,
+          ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: AppSpacing.xxs),
         Text(
           value,
           maxLines: 1,
@@ -984,7 +1262,7 @@ class _SummaryValue extends StatelessWidget {
           style: TextStyle(
             color: color,
             fontWeight: FontWeight.bold,
-            fontSize: 13,
+            fontSize: AppFontSize.body,
           ),
         ),
       ],

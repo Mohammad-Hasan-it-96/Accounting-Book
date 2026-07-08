@@ -5,6 +5,13 @@ import '../../data/models/customer.dart';
 import '../../data/models/currency.dart';
 import '../../data/models/transaction.dart' as tx_model;
 import '../../core/helpers/format_helper.dart';
+import '../../core/helpers/form_validators.dart';
+import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_empty_state.dart';
+import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_loading.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/currency_repository.dart';
 import '../../data/repositories/transaction_repository.dart';
@@ -130,15 +137,11 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
 
     if (customerId == null || currencyId == null) return;
     if (selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('التاريخ مطلوب')),
-      );
+      AppSnackBar.warning(context, 'التاريخ مطلوب');
       return;
     }
     if (!hasValidType) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('نوع الحركة مطلوب')),
-      );
+      AppSnackBar.warning(context, 'نوع الحركة مطلوب');
       return;
     }
 
@@ -161,10 +164,17 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
 
     final dbHelper = context.read<AppProvider>().dbHelper;
     final repo = TransactionRepository(dbHelper);
-    if (widget.transaction == null) {
-      await repo.insert(tx);
-    } else {
-      await repo.update(tx);
+    try {
+      if (widget.transaction == null) {
+        await repo.insert(tx);
+      } else {
+        await repo.update(tx);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      AppSnackBar.error(context, 'تعذر حفظ الحركة');
+      return;
     }
 
     if (!mounted) return;
@@ -176,32 +186,28 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
     final txId = widget.transaction?.id;
     if (txId == null) return;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('تأكيد الحذف'),
-        content: const Text('هل تريد حذف هذه الحركة؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('حذف'),
-          ),
-        ],
-      ),
+    final confirm = await AppDialog.confirm(
+      context,
+      title: 'حذف الحركة',
+      message: 'هل تريد حذف هذه الحركة؟ لا يمكن التراجع عن هذا الإجراء.',
+      confirmLabel: 'حذف',
+      destructive: true,
     );
 
-    if (confirm != true) return;
+    if (!confirm) return;
     if (!mounted) return;
 
     HapticFeedback.heavyImpact();
     setState(() => _saving = true);
     final dbHelper = context.read<AppProvider>().dbHelper;
-    await TransactionRepository(dbHelper).delete(txId);
+    try {
+      await TransactionRepository(dbHelper).delete(txId);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      AppSnackBar.error(context, 'تعذر حذف الحركة');
+      return;
+    }
     if (mounted) Navigator.pop(context, true);
   }
 
@@ -212,36 +218,20 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
     if (_loadingLookups) {
       return Scaffold(
         appBar: AppBar(title: Text(isEdit ? 'تعديل حركة' : 'إضافة حركة')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const AppLoading(),
       );
     }
 
     if (_customers.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: Text(isEdit ? 'تعديل حركة' : 'إضافة حركة')),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.people_outline, size: 64, color: Colors.grey.shade300),
-              const SizedBox(height: 16),
-              Text(
-                'لا يوجد عملاء',
-                style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'أضف عميلاً أولاً ثم أضف الحركة',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back),
-                label: const Text('العودة'),
-              ),
-            ],
-          ),
+        body: AppEmptyState(
+          icon: Icons.people_outline,
+          title: 'لا يوجد عملاء',
+          description: 'أضف عميلاً أولاً ثم أضف الحركة',
+          actionLabel: 'العودة',
+          actionIcon: Icons.arrow_back,
+          onAction: () => Navigator.pop(context),
         ),
       );
     }
@@ -251,25 +241,15 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         final nav = Navigator.of(context);
-        final leave = await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('تجاهل التغييرات؟'),
-            content: const Text('لديك تغييرات غير محفوظة. هل تريد المغادرة؟'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('تابع التعديل'),
-              ),
-              TextButton(
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('تجاهل'),
-              ),
-            ],
-          ),
+        final leave = await AppDialog.confirm(
+          context,
+          title: 'تجاهل التغييرات؟',
+          message: 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟',
+          confirmLabel: 'تجاهل',
+          cancelLabel: 'تابع التعديل',
+          destructive: true,
         );
-        if (leave == true && mounted) nav.pop();
+        if (leave && mounted) nav.pop();
       },
       child: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
@@ -281,23 +261,23 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                 IconButton(
                   tooltip: 'حذف الحركة',
                   onPressed: _saving ? null : _deleteTransaction,
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  icon: const Icon(Icons.delete_outline),
                 ),
             ],
           ),
           body: Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
-                DropdownButtonFormField<int>(
-                  initialValue: _customers.any((c) => c.id == _selectedCustomerId)
+                AppDropdownField<int>(
+                  value: _customers.any((c) => c.id == _selectedCustomerId)
                       ? _selectedCustomerId
                       : null,
-                  decoration: const InputDecoration(
-                    labelText: 'العميل *',
-                    prefixIcon: Icon(Icons.person),
-                  ),
+                  label: 'العميل',
+                  icon: Icons.person,
+                  required: true,
+                  requiredMessage: 'العميل مطلوب',
                   items: _customers
                       .where((c) => c.id != null)
                       .map(
@@ -311,18 +291,17 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                     setState(() => _selectedCustomerId = v);
                     _markDirty();
                   },
-                  validator: (v) => v == null ? 'العميل مطلوب' : null,
                 ),
-                const SizedBox(height: 16),
+                Gap.h12,
 
-                DropdownButtonFormField<int>(
-                  initialValue: _currencies.any((c) => c.id == _selectedCurrencyId)
+                AppDropdownField<int>(
+                  value: _currencies.any((c) => c.id == _selectedCurrencyId)
                       ? _selectedCurrencyId
                       : null,
-                  decoration: const InputDecoration(
-                    labelText: 'العملة *',
-                    prefixIcon: Icon(Icons.currency_exchange),
-                  ),
+                  label: 'العملة',
+                  icon: Icons.currency_exchange,
+                  required: true,
+                  requiredMessage: 'العملة مطلوبة',
                   items: _currencies
                       .where((c) => c.id != null)
                       .map(
@@ -336,62 +315,41 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                     setState(() => _selectedCurrencyId = v);
                     _markDirty();
                   },
-                  validator: (v) => v == null ? 'العملة مطلوبة' : null,
                 ),
-                const SizedBox(height: 12),
+                Gap.h12,
 
                 // المبلغ
-                TextFormField(
+                AppTextField(
                   controller: _amountCtrl,
+                  label: 'المبلغ',
+                  icon: Icons.monetization_on,
+                  required: true,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'المبلغ *',
-                    prefixIcon: Icon(Icons.monetization_on),
-                  ),
+                  validator: FormValidators.amount(requiredMessage: 'المبلغ مطلوب'),
                   onChanged: (_) => _markDirty(),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'المبلغ مطلوب';
-                    final amount = double.tryParse(v.trim());
-                    if (amount == null) return 'أدخل رقماً صحيحاً';
-                    if (amount <= 0) return 'أدخل مبلغاً أكبر من صفر';
-                    return null;
-                  },
                 ),
-                const SizedBox(height: 12),
+                Gap.h12,
 
                 // التاريخ
-                InkWell(
+                AppDateField(
+                  label: 'التاريخ',
+                  required: true,
+                  value: _selectedDate,
+                  format: FormatHelper.formatDateFromDateTime,
                   onTap: () async {
                     await _pickDate();
                     _markDirty();
                   },
-                  borderRadius: BorderRadius.circular(8),
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'التاريخ *',
-                      prefixIcon: Icon(Icons.calendar_today),
-                    ),
-                    child: Text(
-                      _selectedDate == null
-                          ? 'اختر التاريخ'
-                          : FormatHelper.formatDateFromDateTime(_selectedDate!),
-                      style: TextStyle(
-                        color: _selectedDate == null
-                            ? Colors.grey.shade600
-                            : null,
-                      ),
-                    ),
-                  ),
                 ),
-                const SizedBox(height: 12),
+                Gap.h12,
 
-                DropdownButtonFormField<int>(
-                  initialValue: _normalizeInFlag(_inFlag),
-                  decoration: const InputDecoration(
-                    labelText: 'نوع الحركة *',
-                    prefixIcon: Icon(Icons.compare_arrows),
-                  ),
+                AppDropdownField<int>(
+                  value: _normalizeInFlag(_inFlag),
+                  label: 'نوع الحركة',
+                  icon: Icons.compare_arrows,
+                  required: true,
+                  requiredMessage: 'نوع الحركة مطلوب',
                   items: _transactionTypeOptions
                       .map(
                         (option) => DropdownMenuItem<int>(
@@ -404,32 +362,25 @@ class _AddEditTransactionScreenState extends State<AddEditTransactionScreen> {
                     setState(() => _inFlag = _normalizeInFlag(v));
                     _markDirty();
                   },
-                  validator: (v) => v == null ? 'نوع الحركة مطلوب' : null,
                 ),
-                const SizedBox(height: 12),
+                Gap.h12,
 
                 // ملاحظة
-                TextFormField(
+                AppTextField(
                   controller: _remarksCtrl,
+                  label: 'ملاحظة (اختياري)',
+                  icon: Icons.note,
                   maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'ملاحظة (اختياري)',
-                    prefixIcon: Icon(Icons.note),
-                  ),
                   onChanged: (_) => _markDirty(),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.xxl),
 
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: _saving ? null : _save,
                     child: _saving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const AppLoading.inline()
                         : Text(isEdit ? 'حفظ التعديلات' : 'إضافة الحركة'),
                   ),
                 ),

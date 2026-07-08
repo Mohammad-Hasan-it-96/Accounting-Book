@@ -1,46 +1,110 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
+import 'app_dimens.dart';
 
 class AppTheme {
-  // الألوان الأساسية - هادئة وبسيطة
-  static const Color primary = Color(0xFF1565C0);     // أزرق داكن
-  static const Color primaryLight = Color(0xFF1E88E5); // أزرق فاتح
-  static const Color income = Color(0xFF2E7D32);       // أخضر (مطلوب / دائن)
-  static const Color expense = Color(0xFFC62828);      // أحمر (مدفوع / مدين)
-  static const Color neutral = Color(0xFF546E7A);      // رمادي مزرق
+  // أحجام موحّدة لعناصر التحكم
+  static const double _buttonMinHeight = 48;
+
+  // ─── أنماط المكوّنات المشتركة بين الفاتح والداكن ──────────────────────────
+  static OutlinedBorder get _buttonShape =>
+      RoundedRectangleBorder(borderRadius: AppRadius.mdAll);
+
+  static ElevatedButtonThemeData get _elevatedButtonTheme =>
+      ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(0, _buttonMinHeight),
+          shape: _buttonShape,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+        ),
+      );
+
+  static FilledButtonThemeData get _filledButtonTheme => FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, _buttonMinHeight),
+          shape: _buttonShape,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+        ),
+      );
+
+  static OutlinedButtonThemeData get _outlinedButtonTheme =>
+      OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, _buttonMinHeight),
+          shape: _buttonShape,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+        ),
+      );
+
+  static TextButtonThemeData get _textButtonTheme => TextButtonThemeData(
+        style: TextButton.styleFrom(shape: _buttonShape),
+      );
+
+  static InputDecorationTheme get _inputDecorationTheme =>
+      const InputDecorationTheme(
+        border: OutlineInputBorder(borderRadius: AppRadius.smAll),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.md,
+        ),
+      );
+
+  // الشرائح والشارات: حواف دائرية كاملة (Material 3)
+  static ChipThemeData get _chipTheme => const ChipThemeData(
+        shape: StadiumBorder(),
+      );
+
+  static DialogThemeData get _dialogTheme => DialogThemeData(
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll),
+      );
+
+  // شريط علوي موحّد: ارتفاع ثابت، أيقونات بيضاء بحجم موحّد،
+  // حشوة عنوان ثابتة، وطباعة موحّدة عبر كل الشاشات.
+  static const AppBarTheme _appBarBase = AppBarTheme(
+    foregroundColor: Colors.white,
+    elevation: 2,
+    centerTitle: true,
+    toolbarHeight: kToolbarHeight,
+    titleSpacing: AppSpacing.lg,
+    iconTheme: IconThemeData(color: Colors.white, size: AppIconSize.lg),
+    actionsIconTheme:
+        IconThemeData(color: Colors.white, size: AppIconSize.lg),
+    titleTextStyle: TextStyle(
+      color: Colors.white,
+      fontSize: AppFontSize.title,
+      fontWeight: FontWeight.bold,
+    ),
+  );
 
   // ─── Light Theme ─────────────────────────────────────────────────────────
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: primary,
+        seedColor: AppColors.primary,
         brightness: Brightness.light,
       ),
       fontFamily: 'Roboto',
-      appBarTheme: const AppBarTheme(
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        elevation: 2,
-        centerTitle: true,
-        titleTextStyle: TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      appBarTheme: _appBarBase.copyWith(backgroundColor: AppColors.primary),
       cardTheme: CardThemeData(
         elevation: 1,
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        margin: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: primary,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      ),
+      elevatedButtonTheme: _elevatedButtonTheme,
+      filledButtonTheme: _filledButtonTheme,
+      outlinedButtonTheme: _outlinedButtonTheme,
+      textButtonTheme: _textButtonTheme,
+      chipTheme: _chipTheme,
+      dialogTheme: _dialogTheme,
+      inputDecorationTheme: _inputDecorationTheme,
     );
   }
 
@@ -49,37 +113,31 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: primary,
+        seedColor: AppColors.primary,
         brightness: Brightness.dark,
       ),
       fontFamily: 'Roboto',
-      appBarTheme: AppBarTheme(
-        backgroundColor: Colors.grey.shade900,
-        foregroundColor: Colors.white,
-        elevation: 2,
-        centerTitle: true,
-        titleTextStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      appBarTheme: _appBarBase.copyWith(backgroundColor: Colors.grey.shade900),
       cardTheme: CardThemeData(
         elevation: 1,
-        color: const Color(0xFF272727),
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        color: AppColors.cardDark,
+        margin: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: primaryLight,
+        backgroundColor: AppColors.primaryLight,
         foregroundColor: Colors.white,
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      ),
+      elevatedButtonTheme: _elevatedButtonTheme,
+      filledButtonTheme: _filledButtonTheme,
+      outlinedButtonTheme: _outlinedButtonTheme,
+      textButtonTheme: _textButtonTheme,
+      chipTheme: _chipTheme,
+      dialogTheme: _dialogTheme,
+      inputDecorationTheme: _inputDecorationTheme,
     );
   }
 }
-

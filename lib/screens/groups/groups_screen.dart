@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_empty_state.dart';
+import '../../core/widgets/app_error_state.dart';
+import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_loading.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../providers/app_provider.dart';
 
 class GroupsScreen extends StatefulWidget {
@@ -13,6 +20,8 @@ class GroupsScreen extends StatefulWidget {
 class _GroupsScreenState extends State<GroupsScreen> {
   List<_GroupItem> _groups = [];
   bool _loading = true;
+  bool _loadError = false;
+  bool _adding = false; // حارس ضد فتح حواري إضافة متعدد بنقرة مزدوجة
 
   @override
   void initState() {
@@ -34,38 +43,67 @@ class _GroupsScreenState extends State<GroupsScreen> {
         ORDER BY g.name
       ''');
       _groups = rows
-          .map((r) => _GroupItem(
-                id: (r['ID'] as num).toInt(),
-                name: r['name']?.toString() ?? '',
-                customerCount: (r['customer_count'] as num?)?.toInt() ?? 0,
-              ))
+          .map(
+            (r) => _GroupItem(
+              id: (r['ID'] as num).toInt(),
+              name: r['name']?.toString() ?? '',
+              customerCount: (r['customer_count'] as num?)?.toInt() ?? 0,
+            ),
+          )
           .toList();
+      _loadError = false;
     } catch (_) {
       _groups = [];
+      _loadError = true;
     }
     if (mounted) setState(() => _loading = false);
   }
 
   // ─── إضافة مجموعة ────────────────────────────────────────────────────────
   Future<void> _addGroup() async {
-    final name = await _nameDialog(title: 'مجموعة جديدة');
-    if (name == null || name.isEmpty || !mounted) return;
-    final db = await context.read<AppProvider>().dbHelper.db;
-    await db.insert(AppConstants.tableGroups, {'name': name});
-    await _load();
+    if (_adding) return;
+    _adding = true;
+    try {
+      final name = await _nameDialog(title: 'مجموعة جديدة');
+      if (name == null || name.isEmpty || !mounted) return;
+      try {
+        final db = await context.read<AppProvider>().dbHelper.db;
+        await db.insert(AppConstants.tableGroups, {'name': name});
+      } catch (_) {
+        if (!mounted) return;
+        AppSnackBar.error(context, 'تعذّر إضافة المجموعة');
+        return;
+      }
+      if (!mounted) return;
+      AppSnackBar.success(context, 'تمت إضافة المجموعة');
+      await _load();
+    } finally {
+      _adding = false;
+    }
   }
 
   // ─── تعديل اسم المجموعة ──────────────────────────────────────────────────
   Future<void> _renameGroup(_GroupItem group) async {
-    final name = await _nameDialog(title: 'تعديل اسم المجموعة', initial: group.name);
-    if (name == null || name.isEmpty || name == group.name || !mounted) return;
-    final db = await context.read<AppProvider>().dbHelper.db;
-    await db.update(
-      AppConstants.tableGroups,
-      {'name': name},
-      where: 'ID = ?',
-      whereArgs: [group.id],
+    final name = await _nameDialog(
+      title: 'تعديل اسم المجموعة',
+      initial: group.name,
     );
+    if (name == null || name.isEmpty || name == group.name || !mounted) return;
+    try {
+      final db = await context.read<AppProvider>().dbHelper.db;
+      await db.update(
+        AppConstants.tableGroups,
+        {'name': name},
+        where: 'ID = ?',
+        whereArgs: [group.id],
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'تعذّر تعديل اسم المجموعة');
+      return;
+    }
+    if (!mounted) return;
+    AppSnackBar.success(context, 'تم تعديل اسم المجموعة');
     await _load();
   }
 
@@ -73,63 +111,48 @@ class _GroupsScreenState extends State<GroupsScreen> {
   Future<void> _deleteGroup(_GroupItem group) async {
     if (group.customerCount > 0) {
       // اسأل المستخدم هل يريد إلغاء تعيين العملاء أيضاً
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('حذف المجموعة'),
-          content: Text(
+      final confirm = await AppDialog.confirm(
+        context,
+        title: 'حذف المجموعة',
+        message:
             'المجموعة "${group.name}" تحتوي على ${group.customerCount} عميل.\n'
             'سيتم إلغاء تعيينهم من المجموعة عند الحذف.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('إلغاء'),
-            ),
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('حذف'),
-            ),
-          ],
-        ),
+        confirmLabel: 'حذف',
+        destructive: true,
       );
-      if (confirm != true || !mounted) return;
+      if (!confirm || !mounted) return;
     } else {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('حذف المجموعة'),
-          content: Text('هل تريد حذف مجموعة "${group.name}"؟'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('إلغاء'),
-            ),
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('حذف'),
-            ),
-          ],
-        ),
+      final confirm = await AppDialog.confirm(
+        context,
+        title: 'حذف المجموعة',
+        message: 'هل تريد حذف مجموعة "${group.name}"؟',
+        confirmLabel: 'حذف',
+        destructive: true,
       );
-      if (confirm != true || !mounted) return;
+      if (!confirm || !mounted) return;
     }
 
-    final db = await context.read<AppProvider>().dbHelper.db;
-    // إلغاء تعيين العملاء من المجموعة
-    await db.update(
-      AppConstants.tableCustomers,
-      {'g_id': null},
-      where: 'g_id = ?',
-      whereArgs: [group.id],
-    );
-    await db.delete(
-      AppConstants.tableGroups,
-      where: 'ID = ?',
-      whereArgs: [group.id],
-    );
+    try {
+      final db = await context.read<AppProvider>().dbHelper.db;
+      // إلغاء تعيين العملاء من المجموعة
+      await db.update(
+        AppConstants.tableCustomers,
+        {'g_id': null},
+        where: 'g_id = ?',
+        whereArgs: [group.id],
+      );
+      await db.delete(
+        AppConstants.tableGroups,
+        where: 'ID = ?',
+        whereArgs: [group.id],
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackBar.error(context, 'تعذّر حذف المجموعة');
+      return;
+    }
+    if (!mounted) return;
+    AppSnackBar.success(context, 'تم حذف المجموعة');
     await _load();
   }
 
@@ -140,13 +163,11 @@ class _GroupsScreenState extends State<GroupsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
-        content: TextField(
+        content: AppTextField(
           controller: ctrl,
+          label: 'اسم المجموعة',
+          icon: Icons.group_work_outlined,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'اسم المجموعة',
-            prefixIcon: Icon(Icons.group_work_outlined),
-          ),
           onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
         ),
         actions: [
@@ -168,91 +189,91 @@ class _GroupsScreenState extends State<GroupsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('إدارة المجموعات'),
-      ),
+      appBar: AppBar(title: const Text('إدارة المجموعات')),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoading()
+          : _loadError
+          ? AppErrorState(
+              title: 'تعذر تحميل المجموعات',
+              message: 'حدث خطأ أثناء جلب البيانات.',
+              onRetry: _load,
+            )
           : _groups.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.group_work_outlined,
-                          size: 64, color: Colors.grey.shade300),
-                      const SizedBox(height: 12),
-                      Text(
-                        'لا توجد مجموعات',
-                        style: TextStyle(
-                            fontSize: 16, color: Colors.grey.shade500),
+          ? const AppEmptyState(
+              icon: Icons.group_work_outlined,
+              title: 'لا توجد مجموعات',
+              description: 'اضغط + لإضافة مجموعة جديدة',
+            )
+          : ListView.separated(
+              itemCount: _groups.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (_, i) {
+                final g = _groups[i];
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.12),
+                    child: Icon(
+                      Icons.group_work_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: AppIconSize.md,
+                    ),
+                  ),
+                  title: Text(
+                    g.name,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    g.customerCount == 0
+                        ? 'لا يوجد عملاء'
+                        : '${g.customerCount} عميل',
+                    style: TextStyle(
+                      fontSize: AppFontSize.small,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  trailing: PopupMenuButton<String>(
+                    icon: Icon(
+                      Icons.more_vert,
+                      size: AppIconSize.md,
+                      color: Colors.grey.shade400,
+                    ),
+                    tooltip: 'خيارات',
+                    onSelected: (v) {
+                      if (v == 'rename') _renameGroup(g);
+                      if (v == 'delete') _deleteGroup(g);
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'rename',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_outlined, size: AppIconSize.md),
+                            SizedBox(width: AppSpacing.sm),
+                            Text('تعديل الاسم'),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'اضغط + لإضافة مجموعة جديدة',
-                        style: TextStyle(
-                            fontSize: 13, color: Colors.grey.shade400),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.delete_outline,
+                              size: AppIconSize.md,
+                              color: Colors.red,
+                            ),
+                            SizedBox(width: AppSpacing.sm),
+                            Text('حذف', style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                )
-              : ListView.separated(
-                  itemCount: _groups.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (_, i) {
-                    final g = _groups[i];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.12),
-                        child: Icon(
-                          Icons.group_work_outlined,
-                          color: Theme.of(context).colorScheme.primary,
-                          size: 20,
-                        ),
-                      ),
-                      title: Text(g.name,
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(
-                        g.customerCount == 0
-                            ? 'لا يوجد عملاء'
-                            : '${g.customerCount} عميل',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade500),
-                      ),
-                      trailing: PopupMenuButton<String>(
-                        icon: Icon(Icons.more_vert,
-                            size: 20, color: Colors.grey.shade400),
-                        tooltip: 'خيارات',
-                        onSelected: (v) {
-                          if (v == 'rename') _renameGroup(g);
-                          if (v == 'delete') _deleteGroup(g);
-                        },
-                        itemBuilder: (_) => [
-                          const PopupMenuItem(
-                            value: 'rename',
-                            child: Row(children: [
-                              Icon(Icons.edit_outlined, size: 18),
-                              SizedBox(width: 8),
-                              Text('تعديل الاسم'),
-                            ]),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(children: [
-                              Icon(Icons.delete_outline,
-                                  size: 18, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text('حذف',
-                                  style: TextStyle(color: Colors.red)),
-                            ]),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                );
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'إضافة مجموعة',
         onPressed: _addGroup,

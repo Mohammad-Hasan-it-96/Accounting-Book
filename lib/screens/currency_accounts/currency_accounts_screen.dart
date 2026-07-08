@@ -9,17 +9,31 @@ import '../../data/repositories/customer_repository.dart';
 import '../../data/repositories/transaction_repository.dart';
 import '../../providers/app_provider.dart';
 import '../../core/helpers/format_helper.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_empty_state.dart';
+import '../../core/widgets/app_error_state.dart';
+import '../../core/widgets/app_loading.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../activation/activation_screen.dart';
 import '../customer_details/customer_details_screen.dart';
 import '../add_edit_customer/add_edit_customer_screen.dart';
 
 class CurrencyAccountsScreen extends StatefulWidget {
   final Currency currency;
-  const CurrencyAccountsScreen({super.key, required this.currency});
+
+  /// عند فتح الشاشة من اختصار "إضافة عميل" في الرئيسية: يبدأ تدفّق الإضافة فوراً.
+  final bool openAddOnStart;
+
+  const CurrencyAccountsScreen({
+    super.key,
+    required this.currency,
+    this.openAddOnStart = false,
+  });
 
   @override
-  State<CurrencyAccountsScreen> createState() =>
-      _CurrencyAccountsScreenState();
+  State<CurrencyAccountsScreen> createState() => _CurrencyAccountsScreenState();
 }
 
 class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
@@ -27,14 +41,17 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
   String _sortBy = 'name'; // name | balance | last_tx
 
   List<_CustomerWithBalance> _items = [];
-  bool _loading      = true;
-  bool _isActivated  = true;
+  bool _loading = true;
+  bool _loadError = false;
+  bool _isActivated = true;
   bool _showArchived = false; // إظهار العملاء المؤرشفين
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _load().then((_) {
+      if (widget.openAddOnStart && mounted) _addCustomer();
+    });
   }
 
   @override
@@ -57,9 +74,9 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
         ActivationService().isActivated(),
       ]);
 
-      final summaries  = results[0] as Map<int?, dynamic>;
-      final customers  = results[1] as List<Customer>;
-      final activated  = results[2] as bool;
+      final summaries = results[0] as Map<int?, dynamic>;
+      final customers = results[1] as List<Customer>;
+      final activated = results[2] as bool;
 
       _isActivated = activated;
       _items = customers.map((c) {
@@ -71,11 +88,46 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
           lastTxDate: s?.lastTxDate,
         );
       }).toList();
+      _loadError = false;
     } catch (_) {
       _items = [];
+      _loadError = true;
     }
+    _displayedCache = null; // أبطِل الذاكرة المؤقّتة بعد تحديث القائمة
     if (!mounted) return;
     setState(() => _loading = false);
+  }
+
+  // ─── إضافة عميل ──────────────────────────────────────────────────────────
+  // يعيد استخدام فحص الحد المجاني ثم يفتح شاشة الإضافة، ويعرض تفاصيل العميل
+  // الجديد عند إنشائه. مُستدعى من زر الإضافة العائم ومن اختصار الرئيسية.
+  Future<void> _addCustomer() async {
+    final canAdd = await _checkCanAddCustomer();
+    if (!mounted) return;
+    if (!canAdd) return;
+
+    final result = await Navigator.push<Object?>(
+      context,
+      MaterialPageRoute(builder: (_) => const AddEditCustomerScreen()),
+    );
+    if (!mounted) return;
+    if (result is Customer) {
+      await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CustomerDetailsScreen(
+            customer: result,
+            currency: widget.currency,
+          ),
+        ),
+      );
+      if (!mounted) return;
+      await _load();
+      return;
+    }
+    if (result == true) {
+      await _load();
+    }
   }
 
   Future<void> _editCustomer(Customer customer) async {
@@ -93,52 +145,37 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
     if (id == null) return;
     final dbHelper = context.read<AppProvider>().dbHelper;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('تأكيد الحذف'),
-        content: Text('هل تريد حذف العميل "${customer.name}" نهائيًا؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('حذف'),
-          ),
-        ],
-      ),
+    final confirm = await AppDialog.confirm(
+      context,
+      title: 'حذف العميل',
+      message:
+          'هل تريد حذف العميل "${customer.name}" نهائياً؟ لا يمكن التراجع عن هذا الإجراء.',
+      confirmLabel: 'حذف',
+      destructive: true,
     );
 
-    if (confirm != true) return;
+    if (!confirm) return;
 
     try {
       final repo = CustomerRepository(dbHelper);
       await repo.delete(id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حذف العميل')),
-      );
+      AppSnackBar.success(context, 'تم حذف العميل');
       await _load();
     } on StateError catch (e) {
       if (!mounted) return;
       final hasTx = e.message == 'customer_has_transactions';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            hasTx
-                ? 'لا يمكن حذف العميل لأنه يملك حركات. احذف الحركات أولاً.'
-                : 'تعذر حذف العميل',
-          ),
-        ),
-      );
+      if (hasTx) {
+        AppSnackBar.warning(
+          context,
+          'لا يمكن حذف العميل لأنه يملك حركات. احذف الحركات أولاً.',
+        );
+      } else {
+        AppSnackBar.error(context, 'تعذر حذف العميل');
+      }
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر حذف العميل')),
-      );
+      AppSnackBar.error(context, 'تعذر حذف العميل');
     }
   }
 
@@ -152,43 +189,28 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
 
     if (total < AppConstants.trialCustomerLimit) return true;
 
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('وصلت للحد المجاني'),
-        content: Text(
+    final activate = await AppDialog.confirm(
+      context,
+      title: 'وصلت إلى الحد المجاني',
+      message:
           'وصلت للحد المجاني (${AppConstants.trialCustomerLimit} حساب).\nيرجى تفعيل التطبيق للمتابعة.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('لاحقاً'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ActivationScreen()),
-              );
-            },
-            child: const Text('تفعيل الآن'),
-          ),
-        ],
-      ),
+      confirmLabel: 'تفعيل الآن',
+      cancelLabel: 'لاحقاً',
+      icon: Icons.lock_outline,
     );
+    if (activate && mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ActivationScreen()),
+      );
+    }
     return false;
   }
 
   // ─── تصدير تقرير جميع العملاء ───────────────────────────────────────────
   Future<void> _exportAllReport() async {
     if (_items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('لا يوجد عملاء للتصدير'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnackBar.warning(context, 'لا يوجد عملاء للتصدير');
       return;
     }
 
@@ -214,31 +236,59 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
       if (b < 0) totalCredit += b.abs();
     }
 
-    buf.writeln('إجمالي المطلوب : ${FormatHelper.formatAmount(totalDebt)} ${widget.currency.displayName}');
-    buf.writeln('إجمالي المدفوع : ${FormatHelper.formatAmount(totalCredit)} ${widget.currency.displayName}');
+    buf.writeln(
+      'إجمالي المطلوب : ${FormatHelper.formatAmount(totalDebt)} ${widget.currency.displayName}',
+    );
+    buf.writeln(
+      'إجمالي المدفوع : ${FormatHelper.formatAmount(totalCredit)} ${widget.currency.displayName}',
+    );
     buf.writeln('عدد العملاء   : ${_items.length}');
     buf.writeln('───────────────────────────────────\n');
 
     for (int i = 0; i < sorted.length; i++) {
       final item = sorted[i];
       final b = item.balance;
-      final label = b > 0 ? 'مطلوب' : b < 0 ? 'مدفوع' : 'مسوّى';
+      final label = b > 0
+          ? 'مطلوب'
+          : b < 0
+          ? 'مدفوع'
+          : 'مسوّى';
       buf.writeln('${i + 1}. ${item.customer.name}');
       if (item.customer.gsm?.isNotEmpty == true) {
         buf.writeln('   📞 ${item.customer.gsm}');
       }
-      buf.writeln('   ${FormatHelper.formatAmount(b.abs())} ${widget.currency.displayName} — $label');
+      buf.writeln(
+        '   ${FormatHelper.formatAmount(b.abs())} ${widget.currency.displayName} — $label',
+      );
       buf.writeln();
     }
 
     buf.writeln('═══════════════════════════════════');
     buf.writeln('دفتر الحسابات');
 
-    await Share.share(buf.toString(), subject: 'كشف أرصدة العملاء — ${widget.currency.displayName}');
+    await Share.share(
+      buf.toString(),
+      subject: 'كشف أرصدة العملاء — ${widget.currency.displayName}',
+    );
   }
+
+  // تخزين مؤقّت لنتيجة البحث/الترتيب/الأرشيف مفهرَس بتوقيع حالة الفلاتر،
+  // حتى لا نُعيد الفلترة والترتيب في كل إعادة رسم (كل ضغطة بحث تستدعي build).
+  List<_CustomerWithBalance>? _displayedCache;
+  String _displayedSig = '';
 
   /// بحث فوري + ترتيب + فلتر الأرشيف
   List<_CustomerWithBalance> get _displayed {
+    final sig = '${_searchCtrl.text}|$_sortBy|$_showArchived|${_items.length}';
+    final cached = _displayedCache;
+    if (cached != null && sig == _displayedSig) return cached;
+    final result = _computeDisplayed();
+    _displayedCache = result;
+    _displayedSig = sig;
+    return result;
+  }
+
+  List<_CustomerWithBalance> _computeDisplayed() {
     final q = _searchCtrl.text.toLowerCase();
     var list = _items.where((i) {
       // فلتر الأرشيف: إخفاء المؤرشفين إلا إذا طلب المستخدم إظهارهم
@@ -270,6 +320,7 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
   @override
   Widget build(BuildContext context) {
     final displayed = _displayed;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
@@ -288,47 +339,59 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
               _sortBy == 'name'
                   ? Icons.sort_by_alpha
                   : _sortBy == 'balance'
-                      ? Icons.attach_money
-                      : Icons.schedule,
+                  ? Icons.attach_money
+                  : Icons.schedule,
             ),
             tooltip: 'ترتيب',
             onSelected: (v) => setState(() => _sortBy = v),
             itemBuilder: (_) => [
               PopupMenuItem(
                 value: 'name',
-                child: Row(children: [
-                  Icon(Icons.sort_by_alpha,
-                      size: 18,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.sort_by_alpha,
+                      size: AppIconSize.md,
                       color: _sortBy == 'name'
                           ? Theme.of(context).colorScheme.primary
-                          : null),
-                  const SizedBox(width: 8),
-                  const Text('ترتيب بالاسم'),
-                ]),
+                          : null,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    const Text('ترتيب بالاسم'),
+                  ],
+                ),
               ),
               PopupMenuItem(
                 value: 'balance',
-                child: Row(children: [
-                  Icon(Icons.attach_money,
-                      size: 18,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.attach_money,
+                      size: AppIconSize.md,
                       color: _sortBy == 'balance'
                           ? Theme.of(context).colorScheme.primary
-                          : null),
-                  const SizedBox(width: 8),
-                  const Text('ترتيب بالرصيد'),
-                ]),
+                          : null,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    const Text('ترتيب بالرصيد'),
+                  ],
+                ),
               ),
               PopupMenuItem(
                 value: 'last_tx',
-                child: Row(children: [
-                  Icon(Icons.schedule,
-                      size: 18,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.schedule,
+                      size: AppIconSize.md,
                       color: _sortBy == 'last_tx'
                           ? Theme.of(context).colorScheme.primary
-                          : null),
-                  const SizedBox(width: 8),
-                  const Text('ترتيب بآخر حركة'),
-                ]),
+                          : null,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    const Text('ترتيب بآخر حركة'),
+                  ],
+                ),
               ),
             ],
           ),
@@ -344,34 +407,57 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
             ),
 
           // ─── تحذير الاقتراب من الحد المجاني ────────────────────
-          if (!_loading && !_isActivated &&
+          if (!_loading &&
+              !_isActivated &&
               _items.length >= AppConstants.trialWarningThreshold &&
               _items.length < AppConstants.trialCustomerLimit)
             Container(
-              color: Colors.orange.shade50,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              color: isDark
+                  ? Colors.orange.shade900.withValues(alpha: 0.22)
+                  : Colors.orange.shade50,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
               child: Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded,
-                      color: Colors.orange.shade800, size: 18),
-                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color:
+                        isDark ? Colors.orange.shade300 : Colors.orange.shade800,
+                    size: AppIconSize.md,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
                       'اقتربت من الحد المجاني: ${_items.length} / ${AppConstants.trialCustomerLimit} عميل',
                       style: TextStyle(
-                          fontSize: 12, color: Colors.orange.shade900),
+                        fontSize: AppFontSize.small,
+                        color: isDark
+                            ? Colors.orange.shade100
+                            : Colors.orange.shade900,
+                      ),
                     ),
                   ),
                   TextButton(
                     style: TextButton.styleFrom(
-                        foregroundColor: Colors.orange.shade900,
-                        padding: const EdgeInsets.symmetric(horizontal: 8)),
+                      foregroundColor: isDark
+                          ? Colors.orange.shade200
+                          : Colors.orange.shade900,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                      ),
+                    ),
                     onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => const ActivationScreen()),
+                        builder: (_) => const ActivationScreen(),
+                      ),
                     ),
-                    child: const Text('تفعيل', style: TextStyle(fontSize: 12)),
+                    child: const Text(
+                      'تفعيل',
+                      style: TextStyle(fontSize: AppFontSize.small),
+                    ),
                   ),
                 ],
               ),
@@ -379,7 +465,12 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
 
           // ─── بحث فوري ───────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.sm,
+              AppSpacing.md,
+              AppSpacing.sm,
+            ),
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
@@ -389,10 +480,12 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
                 suffixIcon: _searchCtrl.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
+                        tooltip: 'مسح البحث',
                         onPressed: () {
                           _searchCtrl.clear();
                           setState(() {});
-                        })
+                        },
+                      )
                     : null,
               ),
               onChanged: (_) => setState(() {}),
@@ -402,28 +495,41 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
           // ─── فلتر الأرشيف + عداد النتائج ───────────────────────
           if (!_loading)
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                0,
+                AppSpacing.md,
+                AppSpacing.xs,
+              ),
               child: Row(
                 children: [
                   FilterChip(
-                    label: const Text('المؤرشفون', style: TextStyle(fontSize: 12)),
+                    label: const Text(
+                      'المؤرشفون',
+                      style: TextStyle(fontSize: AppFontSize.small),
+                    ),
                     selected: _showArchived,
                     avatar: Icon(
                       Icons.archive_outlined,
-                      size: 14,
+                      size: AppIconSize.sm,
                       color: _showArchived
                           ? Theme.of(context).colorScheme.onPrimary
                           : Colors.grey.shade600,
                     ),
                     onSelected: (v) => setState(() => _showArchived = v),
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xs,
+                    ),
                   ),
                   const Spacer(),
                   if (_searchCtrl.text.isNotEmpty || _showArchived)
                     Text(
                       '${displayed.length} نتيجة',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                      style: TextStyle(
+                        fontSize: AppFontSize.small,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
                 ],
               ),
@@ -432,103 +538,70 @@ class _CurrencyAccountsScreenState extends State<CurrencyAccountsScreen> {
           // ─── القائمة ─────────────────────────────────────────────
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? const AppLoading()
+                : _loadError
+                ? AppErrorState(
+                    title: 'تعذر تحميل العملاء',
+                    message: 'حدث خطأ أثناء جلب البيانات.',
+                    onRetry: _load,
+                  )
                 : displayed.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.people_outline,
-                                size: 48, color: Colors.grey.shade300),
-                            const SizedBox(height: 8),
-                            Text(
-                              _searchCtrl.text.isNotEmpty
-                                  ? 'لا نتائج لـ "${_searchCtrl.text}"'
-                                  : 'لا يوجد عملاء',
-                              style:
-                                  TextStyle(color: Colors.grey.shade500),
-                            ),
-                          ],
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        child: ListView.builder(
-                          itemCount: displayed.length,
-                          itemBuilder: (_, i) {
-                            final item = displayed[i];
-                            return _CustomerTile(
-                              item: item,
-                              currencyName: widget.currency.displayName,
-                              onTap: () async {
-                                final changed = await Navigator.push<bool>(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => CustomerDetailsScreen(
-                                      customer: item.customer,
-                                      currency: widget.currency,
-                                    ),
-                                  ),
-                                );
-                                if (changed == true && mounted) {
-                                  await _load();
-                                }
-                              },
-                              onEdit: () => _editCustomer(item.customer),
-                              onDelete: () => _deleteCustomer(item.customer),
-                              onShare: () {
-                                final b = item.balance;
-                                final label = b > 0
-                                    ? 'مطلوب'
-                                    : b < 0
-                                        ? 'مدفوع'
-                                        : 'مسوّى';
-                                Share.share(
-                                  'حساب: ${item.customer.name}\n'
-                                  'الرصيد: ${FormatHelper.formatAmount(b.abs())} ${widget.currency.displayName}\n'
-                                  'الحالة: $label',
-                                  subject: 'رصيد ${item.customer.name}',
-                                );
-                              },
+                ? AppEmptyState(
+                    icon: _searchCtrl.text.isNotEmpty
+                        ? Icons.search_off
+                        : Icons.people_outline,
+                    title: _searchCtrl.text.isNotEmpty
+                        ? 'لا نتائج لـ "${_searchCtrl.text}"'
+                        : 'لا يوجد عملاء',
+                  )
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: ListView.builder(
+                      itemCount: displayed.length,
+                      itemBuilder: (_, i) {
+                        final item = displayed[i];
+                        return _CustomerTile(
+                          item: item,
+                          onTap: () async {
+                            final changed = await Navigator.push<bool>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => CustomerDetailsScreen(
+                                  customer: item.customer,
+                                  currency: widget.currency,
+                                ),
+                              ),
+                            );
+                            if (changed == true && mounted) {
+                              await _load();
+                            }
+                          },
+                          onEdit: () => _editCustomer(item.customer),
+                          onDelete: () => _deleteCustomer(item.customer),
+                          onShare: () {
+                            final b = item.balance;
+                            final label = b > 0
+                                ? 'مطلوب'
+                                : b < 0
+                                ? 'مدفوع'
+                                : 'مسوّى';
+                            Share.share(
+                              'حساب: ${item.customer.name}\n'
+                              'الرصيد: ${FormatHelper.formatAmount(b.abs())} ${widget.currency.displayName}\n'
+                              'الحالة: $label',
+                              subject: 'رصيد ${item.customer.name}',
                             );
                           },
-                        ),
-                      ),
+                        );
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'إضافة عميل',
-        onPressed: () async {
-          // فحص الحد المجاني قبل فتح شاشة الإضافة
-          final canAdd = await _checkCanAddCustomer();
-          if (!context.mounted) return;
-          if (!canAdd) return;
-
-          final result = await Navigator.push<Object?>(
-            context,
-            MaterialPageRoute(
-                builder: (_) => const AddEditCustomerScreen()),
-          );
-          if (!context.mounted) return;
-          if (result is Customer) {
-            await Navigator.push<bool>(
-              context,
-              MaterialPageRoute(
-                builder: (_) => CustomerDetailsScreen(
-                  customer: result,
-                  currency: widget.currency,
-                ),
-              ),
-            );
-            if (!context.mounted) return;
-            await _load();
-            return;
-          }
-          if (result == true) {
-            await _load();
-          }
-        },
+        onPressed: _addCustomer,
         child: const Icon(Icons.person_add),
       ),
     );
@@ -545,32 +618,53 @@ class _SummaryBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final withBalance = items.where((i) => i.balance != 0).length;
-    final totalCredit =
-        items.fold(0.0, (s, i) => i.balance > 0 ? s + i.balance : s);
-    final totalDebit =
-        items.fold(0.0, (s, i) => i.balance < 0 ? s + i.balance.abs() : s);
+    final totalCredit = items.fold(
+      0.0,
+      (s, i) => i.balance > 0 ? s + i.balance : s,
+    );
+    final totalDebit = items.fold(
+      0.0,
+      (s, i) => i.balance < 0 ? s + i.balance.abs() : s,
+    );
 
     return Container(
       color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.06),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.sm,
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _StatItem(label: 'العملاء', value: '${items.length}', icon: Icons.people),
-          _StatItem(
+          Expanded(
+            child: _StatItem(
+              label: 'العملاء',
+              value: '${items.length}',
+              icon: Icons.people,
+            ),
+          ),
+          Expanded(
+            child: _StatItem(
               label: 'لديهم رصيد',
               value: '$withBalance',
-              icon: Icons.account_balance_wallet),
-          _StatItem(
+              icon: Icons.account_balance_wallet,
+            ),
+          ),
+          Expanded(
+            child: _StatItem(
               label: 'دائن',
               value: FormatHelper.formatAmount(totalCredit),
               icon: Icons.arrow_downward,
-              color: const Color(0xFF2E7D32)),
-          _StatItem(
+              color: AppColors.income,
+            ),
+          ),
+          Expanded(
+            child: _StatItem(
               label: 'مدين',
               value: FormatHelper.formatAmount(totalDebit),
               icon: Icons.arrow_upward,
-              color: const Color(0xFFC62828)),
+              color: AppColors.expense,
+            ),
+          ),
         ],
       ),
     );
@@ -583,11 +677,12 @@ class _StatItem extends StatelessWidget {
   final IconData icon;
   final Color? color;
 
-  const _StatItem(
-      {required this.label,
-      required this.value,
-      required this.icon,
-      this.color});
+  const _StatItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -595,13 +690,29 @@ class _StatItem extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: c),
-        const SizedBox(height: 2),
-        Text(value,
-            style: TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 13, color: c)),
-        Text(label,
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+        Icon(icon, size: AppIconSize.sm, color: c),
+        const SizedBox(height: AppSpacing.xxs),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: AppFontSize.body,
+            color: c,
+          ),
+        ),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: AppFontSize.micro,
+            color: Colors.grey.shade600,
+          ),
+        ),
       ],
     );
   }
@@ -610,7 +721,6 @@ class _StatItem extends StatelessWidget {
 // ─── بلاط العميل ─────────────────────────────────────────────────────────────
 class _CustomerTile extends StatelessWidget {
   final _CustomerWithBalance item;
-  final String currencyName;
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -618,166 +728,214 @@ class _CustomerTile extends StatelessWidget {
 
   const _CustomerTile({
     required this.item,
-    required this.currencyName,
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
     required this.onShare,
   });
 
-  // ─── تنسيق تاريخ آخر حركة ────────────────────────────────────────────────
-  String _formatLastTx(DateTime date) {
-    final now  = DateTime.now();
-    final diff = DateTime(now.year, now.month, now.day)
-        .difference(DateTime(date.year, date.month, date.day))
-        .inDays;
-    if (diff == 0) return 'اليوم';
-    if (diff == 1) return 'أمس';
-    return '${date.day}/${date.month}/${date.year}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final balance = item.balance;
-    final isZero  = balance == 0;
+    final isZero = balance == 0;
 
     final avatarBg = isZero
-        ? Colors.grey.shade400
+        ? Colors.grey.shade600
         : balance > 0
-            ? const Color(0xFF2E7D32)
-            : const Color(0xFFC62828);
+        ? AppColors.income
+        : AppColors.expense;
 
     final balanceColor = isZero
-        ? Colors.grey.shade500
+        ? Colors.grey.shade600
         : balance > 0
-            ? const Color(0xFF1B5E20)
-            : const Color(0xFFB71C1C);
+        ? AppColors.incomeDark
+        : AppColors.expenseDark;
 
-    // ─── سطر الملخص الثانوي ─────────────────────────────────────────────────
-    final parts = <String>[];
-    if (item.txCount > 0) parts.add('${item.txCount} حركة');
-    if (item.lastTxDate != null) parts.add('آخرها ${_formatLastTx(item.lastTxDate!)}');
-    final txSubtitle = parts.isEmpty ? 'لا توجد حركات بعد' : parts.join(' · ');
+    final statusLabel = isZero
+        ? 'مسوّى'
+        : balance > 0
+        ? 'مطلوب'
+        : 'مدفوع';
+
+    // ─── معلومات ثانوية: الهاتف + عدد الحركات (+ ملاحظة عند وجودها) ─────────
+    final phone = item.customer.gsm?.trim() ?? '';
+    final hasPhone = phone.isNotEmpty;
+    final txCountLabel = item.txCount > 0 ? '${item.txCount} حركة' : 'لا حركات';
     final notes = item.customer.notes?.trim() ?? '';
     final hasNotes = notes.isNotEmpty;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.xs,
+      ),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.mdAll,
         side: BorderSide(color: Colors.grey.shade200),
       ),
       child: ListTile(
         onTap: onTap,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-        // ─── الأفاتار ──────────────────────────────────────────────
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        // ─── الأفاتار (مع مؤشّر الأرشفة) ──────────────────────────
         leading: Stack(
           clipBehavior: Clip.none,
           children: [
             CircleAvatar(
-              radius: 20,
+              radius: 22,
               backgroundColor: avatarBg.withValues(alpha: 0.14),
               child: Text(
                 item.customer.name.isNotEmpty ? item.customer.name[0] : '؟',
                 style: TextStyle(
                   color: avatarBg,
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
+                  fontSize: AppFontSize.title,
                 ),
               ),
             ),
             if (item.customer.isArchived)
               Positioned(
-                right: -4,
+                right: -2,
                 bottom: -2,
                 child: Container(
-                  padding: const EdgeInsets.all(2),
+                  padding: const EdgeInsets.all(AppSpacing.xxs),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade600,
                     shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
                   ),
-                  child: const Icon(Icons.archive, size: 10, color: Colors.white),
+                  child: const Icon(
+                    Icons.archive,
+                    size: 10,
+                    color: Colors.white,
+                  ),
                 ),
               ),
           ],
         ),
-        // ─── الاسم ─────────────────────────────────────────────────
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                item.customer.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-              ),
-            ),
-            if (item.customer.isArchived)
-              Container(
-                margin: const EdgeInsets.only(right: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  'محفوظ',
-                  style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
-                ),
-              ),
-          ],
+        // ─── الاسم: تأكيد أقوى ─────────────────────────────────────
+        title: Text(
+          item.customer.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: AppFontSize.subtitle,
+          ),
         ),
-        // ─── الملخص (حركات + آخر تاريخ + ملاحظات) ─────────────────
+        // ─── ثانوي: الهاتف + عدد الحركات ──────────────────────────
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              txSubtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            const SizedBox(height: AppSpacing.xxs),
+            Row(
+              children: [
+                if (hasPhone) ...[
+                  Icon(
+                    Icons.phone_outlined,
+                    size: AppIconSize.sm,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      phone,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: AppFontSize.small,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '  ·  ',
+                    style: TextStyle(
+                      fontSize: AppFontSize.small,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+                Text(
+                  txCountLabel,
+                  style: TextStyle(
+                    fontSize: AppFontSize.small,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
             ),
-            if (hasNotes)
+            if (hasNotes) ...[
+              const SizedBox(height: AppSpacing.xxs),
               Text(
                 notes,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade400,
-                    fontStyle: FontStyle.italic),
+                  fontSize: AppFontSize.caption,
+                  color: Colors.grey.shade600,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
+            ],
           ],
         ),
-        // ─── الرصيد + قائمة الخيارات ────────────────────────────────
+        // ─── الرصيد المميَّز + قائمة الخيارات ──────────────────────
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Column(
+            // حدّ أقصى للعرض حتى يقتطع الرصيد الكبير (…) بدل إحداث overflow
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 120),
+              child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  FormatHelper.formatAmount(balance),
-                  style: TextStyle(
-                    color: balanceColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xxs,
+                  ),
+                  decoration: ShapeDecoration(
+                    color: balanceColor.withValues(alpha: 0.12),
+                    shape: const StadiumBorder(),
+                  ),
+                  child: Text(
+                    FormatHelper.formatAmount(balance),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: balanceColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: AppFontSize.subtitle,
+                    ),
                   ),
                 ),
+                const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  currencyName,
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
+                  statusLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: balanceColor,
+                    fontSize: AppFontSize.micro,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(width: 2),
+            ),
+            const SizedBox(width: AppSpacing.xxs),
             PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert,
-                  size: 20, color: Colors.grey.shade400),
+              icon: Icon(
+                Icons.more_vert,
+                size: AppIconSize.md,
+                color: Colors.grey.shade400,
+              ),
               tooltip: 'خيارات',
               onSelected: (v) {
                 if (v == 'edit') onEdit();
@@ -787,27 +945,37 @@ class _CustomerTile extends StatelessWidget {
               itemBuilder: (_) => [
                 const PopupMenuItem<String>(
                   value: 'edit',
-                  child: Row(children: [
-                    Icon(Icons.edit_outlined, size: 18),
-                    SizedBox(width: 8),
-                    Text('تعديل'),
-                  ]),
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: AppIconSize.md),
+                      SizedBox(width: AppSpacing.sm),
+                      Text('تعديل'),
+                    ],
+                  ),
                 ),
                 const PopupMenuItem<String>(
                   value: 'share',
-                  child: Row(children: [
-                    Icon(Icons.share_outlined, size: 18),
-                    SizedBox(width: 8),
-                    Text('مشاركة الرصيد'),
-                  ]),
+                  child: Row(
+                    children: [
+                      Icon(Icons.share_outlined, size: AppIconSize.md),
+                      SizedBox(width: AppSpacing.sm),
+                      Text('مشاركة الرصيد'),
+                    ],
+                  ),
                 ),
                 const PopupMenuItem<String>(
                   value: 'delete',
-                  child: Row(children: [
-                    Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('حذف', style: TextStyle(color: Colors.red)),
-                  ]),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        size: AppIconSize.md,
+                        color: Colors.red,
+                      ),
+                      SizedBox(width: AppSpacing.sm),
+                      Text('حذف', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
                 ),
               ],
             ),

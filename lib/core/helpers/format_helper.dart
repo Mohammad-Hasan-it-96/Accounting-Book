@@ -82,25 +82,8 @@ class FormatHelper {
   }
 }
 
-/// حساب الرصيد من قيمة in و out
-/// in=1  => حركة مطلوب (دائن) : تُضاف للرصيد
-/// in=-1 => حركة مدفوع (مدين) : تُطرح من الرصيد
-/// يمكن تعديل هذا الحساب من مكان واحد هنا فقط
+/// مساعد الحركات
 class BalanceHelper {
-  static double calcTransactionValue(int inFlag, double outVal) {
-    return inFlag == 1 ? outVal : -outVal;
-  }
-
-  static double calcBalance(List<Map<String, dynamic>> transactions) {
-    double balance = 0;
-    for (final t in transactions) {
-      final inFlag = (t['in'] as num?)?.toInt() ?? 0;
-      final outVal = (t['out'] as num?)?.toDouble() ?? 0.0;
-      balance += calcTransactionValue(inFlag, outVal);
-    }
-    return balance;
-  }
-
   /// وصف نوع الحركة بالعربية
   static String transactionLabel(int inFlag) {
     return inFlag == 1 ? 'مطلوب' : 'مدفوع';

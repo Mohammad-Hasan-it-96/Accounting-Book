@@ -89,6 +89,11 @@ class DatabaseHelper {
       await _addColumnIfMissing(db, AppConstants.tableCustomers, 'notes', 'TEXT');
       await _addColumnIfMissing(db, AppConstants.tableCustomers, 'is_archived', 'INTEGER DEFAULT 0');
     }
+    if (oldVersion < 4) {
+      // فهرس مركّب جديد (idx_tx_cus_curr). _createIndexes يستخدم IF NOT EXISTS
+      // فلا يضرّ إعادة استدعائه، ويضمن وجود جميع الفهارس بعد الترقية.
+      await _createIndexes(db);
+    }
   }
 
   Future<void> _createIndexes(Database db) async {
@@ -100,31 +105,109 @@ class DatabaseHelper {
         'CREATE INDEX IF NOT EXISTS idx_tx_date ON ${AppConstants.tableTransactions}(date_)');
     await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_cus_name ON ${AppConstants.tableCustomers}(name)');
+    // فهرس مركّب للاستعلام الأكثر سخونة: حركات عميل في عملة محددة
+    // (WHERE cus_id=? AND curr_id=?) — يخدم شاشة تفاصيل العميل وحساب الرصيد.
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_tx_cus_curr ON ${AppConstants.tableTransactions}(cus_id, curr_id)');
   }
 
   // ─── استيراد قاعدة بيانات خارجية ────────────────────────────────────────
+  // آمن ضد فقدان البيانات: نتحقق من سلامة الملف المصدر ومن مطابقته لمخطط
+  // التطبيق *قبل* استبدال قاعدة البيانات الحيّة، ثم ننسخ إلى ملف مؤقّت ونعيد
+  // تسميته ذرّياً، ونحتفظ بنسخة تراجع نستعيدها عند أي فشل.
   Future<bool> importDatabase(String sourcePath) async {
+    final sourceFile = File(sourcePath);
+    if (!await sourceFile.exists()) return false;
+
+    // 1) التحقق من سلامة ومخطط الملف المصدر قبل لمس قاعدة البيانات الحيّة.
+    if (!await _validateSourceDatabase(sourcePath)) return false;
+
+    final dbPath = await getDatabasesPath();
+    final targetPath = join(dbPath, AppConstants.dbName);
+    final tempPath = '$targetPath.import_tmp';
+    final backupPath = '$targetPath.import_bak';
+
+    await closeDb();
+
+    final targetFile = File(targetPath);
+    final hadExisting = await targetFile.exists();
+
     try {
-      final sourceFile = File(sourcePath);
-      if (!await sourceFile.exists()) return false;
+      // 2) احتفظ بنسخة تراجع من قاعدة البيانات الحالية.
+      if (hadExisting) await targetFile.copy(backupPath);
 
-      // التحقق من سلامة الملف المصدر قبل الاستبدال
-      if (!await _validateSourceDatabase(sourcePath)) return false;
+      // 3) انسخ المصدر إلى ملف مؤقّت ثم أعد تسميته ذرّياً فوق الهدف.
+      await sourceFile.copy(tempPath);
+      await File(tempPath).rename(targetPath);
 
-      await closeDb();
+      // احذف ملفّي WAL/SHM القديمين حتى لا يُدمجا في القاعدة المستوردة الجديدة
+      // (قد يؤدّي بقاؤهما إلى تلف البيانات عند الفتح).
+      await _deleteSidecars(targetPath);
 
-      final dbPath = await getDatabasesPath();
-      final targetPath = join(dbPath, AppConstants.dbName);
-      await sourceFile.copy(targetPath);
-
+      // 4) أعد الفتح وطبّق مواءمة الأعمدة القديمة ثم تحقّق نهائياً.
       _db = await _initDb();
       await _ensureLegacyCompatibility();
+      await _createIndexes(await db);
+
+      if (!await validateTables()) {
+        await _rollbackImport(targetPath, backupPath, hadExisting);
+        return false;
+      }
+
+      await _cleanupImportArtifacts(tempPath, backupPath);
       return true;
-    } catch (e) {
+    } catch (_) {
+      await _rollbackImport(targetPath, backupPath, hadExisting);
+      await _cleanupImportArtifacts(tempPath, null);
       return false;
     }
   }
 
+  // يستعيد قاعدة البيانات الأصلية من نسخة التراجع بعد فشل الاستيراد.
+  Future<void> _rollbackImport(
+      String targetPath, String backupPath, bool hadExisting) async {
+    try {
+      await closeDb();
+      await _deleteSidecars(targetPath);
+      final backup = File(backupPath);
+      if (await backup.exists()) {
+        await backup.copy(targetPath);
+        await backup.delete();
+      } else if (!hadExisting) {
+        // لم تكن هناك قاعدة بيانات قبل الاستيراد: احذف الملف التالف إن وُجد.
+        final target = File(targetPath);
+        if (await target.exists()) await target.delete();
+      }
+    } catch (_) {
+      // لا شيء أكثر يمكن فعله؛ سيُعاد الفتح أدناه.
+    } finally {
+      _db = await _initDb();
+    }
+  }
+
+  // يحذف ملفّي WAL/SHM المصاحبين لقاعدة البيانات (إن وُجدا).
+  Future<void> _deleteSidecars(String targetPath) async {
+    for (final suffix in const ['-wal', '-shm']) {
+      try {
+        final f = File('$targetPath$suffix');
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _cleanupImportArtifacts(String tempPath, String? backupPath) async {
+    try {
+      final temp = File(tempPath);
+      if (await temp.exists()) await temp.delete();
+      if (backupPath != null) {
+        final backup = File(backupPath);
+        if (await backup.exists()) await backup.delete();
+      }
+    } catch (_) {}
+  }
+
+  // يتحقّق من سلامة الملف (integrity_check) ومن مطابقته لمخطط التطبيق،
+  // بفتحه للقراءة فقط دون المساس بقاعدة البيانات الحيّة.
   Future<bool> _validateSourceDatabase(String path) async {
     Database? tempDb;
     try {
@@ -132,7 +215,8 @@ class DatabaseHelper {
       final result = await tempDb.rawQuery('PRAGMA integrity_check');
       if (result.isEmpty) return false;
       final status = result.first.values.first?.toString().toLowerCase();
-      return status == 'ok';
+      if (status != 'ok') return false;
+      return await _hasRequiredSchema(tempDb);
     } catch (_) {
       return false;
     } finally {
@@ -141,10 +225,19 @@ class DatabaseHelper {
   }
 
   // ─── تصدير نسخة احتياطية ─────────────────────────────────────────────────
+  // ملاحظة: الوجهة هي تخزين خاص بالتطبيق
+  // (getExternalStorageDirectory → /Android/data/<pkg>/files، أو مجلّد
+  // المستندات). هذه النسخ تُحذف عند إزالة تثبيت التطبيق ولا تظهر للمستخدم في
+  // مدير الملفات. للاحتفاظ الدائم يجب على المستخدم استخدام «مشاركة/تصدير» يدوياً
+  // لحفظ الملف في موقع يختاره.
   Future<String?> exportDatabase(String fileName) async {
     try {
       final dbPath = await getDatabasesPath();
       final sourcePath = join(dbPath, AppConstants.dbName);
+
+      // دمج سجل WAL في الملف الرئيسي قبل النسخ حتى تكون النسخة متّسقة ولا تفقد
+      // آخر الكتابات (وإلا فقد تكون النسخة ناقصة إن كانت قاعدة البيانات بوضع WAL).
+      await _checkpointWal();
 
       final dir = await getExternalStorageDirectory() ??
           await getApplicationDocumentsDirectory();
@@ -154,6 +247,16 @@ class DatabaseHelper {
       return targetPath;
     } catch (e) {
       return null;
+    }
+  }
+
+  // يدمج سجلّ WAL في ملف قاعدة البيانات الرئيسي (لا يفعل شيئاً خارج وضع WAL).
+  Future<void> _checkpointWal() async {
+    try {
+      final database = await db;
+      await database.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
+    } catch (_) {
+      // إن تعذّر عمل checkpoint نُكمل بنسخ الملف كما هو.
     }
   }
 
@@ -254,32 +357,37 @@ class DatabaseHelper {
       )
     ''');
     // reminders اختياري: لا ننشئه ولا نفرضه كي تبقى الاستعادة متوافقة مع كل النسخ.
+
+    // اضمن وجود الفهارس بعد أي مواءمة (مثلاً بعد استيراد قاعدة قديمة
+    // user_version‏≥3 تتخطّى _onUpgrade فتبقى بلا فهارس). idempotent.
+    await _createIndexes(database);
   }
 
   // ─── التحقق من وجود الجداول والأعمدة الأساسية ─────────────────────────────
   Future<bool> validateTables() async {
     try {
-      final database = await db;
-
-      final required = <String, Set<String>>{
-        AppConstants.tableCustomers: {'id', 'name'},
-        AppConstants.tableTransactions: {'id', 'cus_id', 'in', 'out', 'date_'},
-        AppConstants.tableCurrency: {'id', 'name'},
-      };
-
-      for (final entry in required.entries) {
-        final table = entry.key;
-        final mustHave = entry.value;
-        if (!await _tableExists(database, table)) return false;
-        final cols = await _tableColumns(database, table);
-        if (!cols.containsAll(mustHave)) return false;
-      }
-
-      // reminders اختياري: وجوده أو غيابه لا يفشل التحقق.
-      return true;
+      return await _hasRequiredSchema(await db);
     } catch (_) {
       return false;
     }
+  }
+
+  // يتحقّق من وجود الجداول والأعمدة الأساسية التي يحتاجها التطبيق في [database].
+  Future<bool> _hasRequiredSchema(Database database) async {
+    const required = <String, Set<String>>{
+      AppConstants.tableCustomers: {'id', 'name'},
+      AppConstants.tableTransactions: {'id', 'cus_id', 'in', 'out', 'date_'},
+      AppConstants.tableCurrency: {'id', 'name'},
+    };
+
+    for (final entry in required.entries) {
+      if (!await _tableExists(database, entry.key)) return false;
+      final cols = await _tableColumns(database, entry.key);
+      if (!cols.containsAll(entry.value)) return false;
+    }
+
+    // reminders اختياري: وجوده أو غيابه لا يفشل التحقق.
+    return true;
   }
 }
 

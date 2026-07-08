@@ -48,14 +48,40 @@ android {
 
     buildTypes {
         release {
+            // نستخدم مفتاح الإصدار فقط. لا نوقّع الإصدار بمفتاح التصحيح إطلاقاً.
             signingConfig = if (keyPropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
-                signingConfigs.getByName("debug")
+                null
             }
+            // التصغير/التعتيم مُعطَّل حالياً. عند تفعيله لاحقاً، قواعد الإبقاء
+            // في proguard-rules.pro جاهزة كي لا تنكسر الحزم المعتمدة على reflection.
             isMinifyEnabled = false
             isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
+    }
+}
+
+// أوقِف بناء الإصدار بوضوح إذا لم يكن مفتاح التوقيع مُهيّأً، بدل توقيعه صامتاً
+// بمفتاح التصحيح (وهو ما يرفضه Google Play). بناء التصحيح لا يتأثر.
+if (!keyPropertiesFile.exists()) {
+    val buildingRelease = gradle.startParameter.taskNames.any { requested ->
+        val name = requested.substringAfterLast(':')
+        name.contains("Release", ignoreCase = true) &&
+            (name.startsWith("assemble") ||
+                name.startsWith("bundle") ||
+                name.startsWith("package"))
+    }
+    if (buildingRelease) {
+        throw GradleException(
+            "التوقيع للإصدار غير مُهيّأ. أنشئ ملف android/key.properties " +
+                "(keyAlias/keyPassword/storeFile/storePassword) قبل بناء نسخة الإصدار. " +
+                "تم رفض توقيع الإصدار بمفتاح التصحيح."
+        )
     }
 }
 

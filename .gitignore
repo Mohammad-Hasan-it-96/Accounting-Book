@@ -45,6 +45,11 @@ app.*.map.json
 /android/app/release
 
 # Release signing — never commit these
+key.properties
 android/key.properties
 android/release.jks
 *.jks
+*.keystore
+
+# Android module build output
+/android/build/

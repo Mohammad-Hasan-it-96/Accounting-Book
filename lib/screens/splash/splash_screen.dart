@@ -2,8 +2,12 @@
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimens.dart';
+import '../../core/theme/app_durations.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/pin_service.dart';
+import '../../core/widgets/app_loading.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
 import '../../providers/theme_provider.dart';
@@ -31,7 +35,7 @@ class _SplashScreenState extends State<SplashScreen>
     // ─── animation بسيط: scale bounce → fade النص ──────────────────────────
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: AppDurations.slow,
     );
     _scale = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.12), weight: 65),
@@ -60,7 +64,7 @@ class _SplashScreenState extends State<SplashScreen>
       context.read<ThemeProvider>().load(),                                        // [0] تحميل الثيم
       ActivationService().isActivated(),                                            // [1] هل التطبيق مفعّل؟
       PinService().isPinEnabled(),                                                  // [2] هل قفل PIN مفعّل؟
-      Future.delayed(const Duration(milliseconds: 800)),                           // [3] حد أدنى للعرض
+      Future.delayed(AppDurations.splashHold),                                     // [3] حد أدنى للعرض
       CustomerRepository(context.read<AppProvider>().dbHelper).count(),            // [4] عدد العملاء
     ]);
 
@@ -96,7 +100,7 @@ class _SplashScreenState extends State<SplashScreen>
         pageBuilder: (_, _, _) => destination,
         transitionsBuilder: (_, anim, _, child) =>
             FadeTransition(opacity: anim, child: child),
-        transitionDuration: const Duration(milliseconds: 350),
+        transitionDuration: AppDurations.medium,
       ),
     );
     // ملاحظة:
@@ -108,7 +112,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1565C0),
+      backgroundColor: AppColors.primary,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -134,7 +138,7 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpacing.xxl),
             // ─── اسم التطبيق + وصف مختصر ─────────────────────────────
             FadeTransition(
               opacity: _fade,
@@ -144,30 +148,27 @@ class _SplashScreenState extends State<SplashScreen>
                     'دفتر حسابات',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 26,
+                      fontSize: AppFontSize.display,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.5,
                     ),
                   ),
-                  SizedBox(height: 6),
+                  SizedBox(height: AppSpacing.sm),
                   Text(
                     'إدارة الحسابات بسهولة',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                    style: TextStyle(
+                        color: Colors.white70, fontSize: AppFontSize.body),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 56),
+            const SizedBox(height: AppSpacing.xxxl),
             // ─── مؤشر تحميل خفيف ─────────────────────────────────────
             FadeTransition(
               opacity: _fade,
-              child: const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white54,
-                  strokeWidth: 2,
-                ),
+              child: const AppLoading.inline(
+                size: AppIconSize.lg,
+                color: Colors.white54,
               ),
             ),
           ],

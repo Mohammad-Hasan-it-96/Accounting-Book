@@ -1,8 +1,15 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../../core/helpers/url_helper.dart';
 import '../../core/services/activation_service.dart';
 import '../../core/services/settings_service.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_dimens.dart';
+import '../../core/theme/app_durations.dart';
+import '../../core/theme/app_text_styles.dart';
+import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_loading.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../home/home_screen.dart';
 class ActivationScreen extends StatefulWidget {
   const ActivationScreen({super.key});
@@ -86,7 +93,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
     setState(() {
       _banner = _ResultBanner(message: message, type: _BannerType.success);
     });
-    Future.delayed(const Duration(milliseconds: 900), () {
+    Future.delayed(AppDurations.slow, () {
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
@@ -99,13 +106,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
   void _copyDeviceId() {
     if (_deviceId == null) return;
     Clipboard.setData(ClipboardData(text: _deviceId!));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('تم نسخ معرّف الجهاز'),
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
-      ),
-    );
+    AppSnackBar.success(context, 'تم نسخ معرّف الجهاز');
   }
 
   @override
@@ -114,15 +115,16 @@ class _ActivationScreenState extends State<ActivationScreen> {
     return Scaffold(
       body: SafeArea(
         child: _loadingDeviceId
-            ? const Center(child: CircularProgressIndicator())
+            ? const AppLoading()
             : SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xxl, vertical: AppSpacing.xl),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const SizedBox(height: 20),
+                      const SizedBox(height: AppSpacing.xl),
                       // ─── أيقونة ──────────────────────────────────
                       Center(
                         child: Container(
@@ -136,99 +138,80 @@ class _ActivationScreenState extends State<ActivationScreen> {
                               size: 38, color: primary),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.lg),
                       // ─── العنوان ─────────────────────────────────
                       Text('تفعيل دفتر الحسابات',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
+                          style: AppTextStyles.headlineBold),
+                      const SizedBox(height: AppSpacing.sm),
                        Text(
                          'التطبيق مجاني لإدارة حتى 50 حسابًا.\nبعد ذلك، يكفي التفعيل مرة واحدة للاستخدام غير المحدود.',
                          textAlign: TextAlign.center,
-                         style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.5),
+                         style: TextStyle(fontSize: AppFontSize.body, color: Colors.grey.shade600, height: 1.5),
                        ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: AppSpacing.xxl),
                       // ─── حقل الاسم ───────────────────────────────
-                      TextFormField(
+                      AppTextField(
                         controller: _nameCtrl,
+                        label: 'الاسم',
+                        icon: Icons.person_outline,
+                        required: true,
+                        requiredMessage: 'الاسم مطلوب',
                         textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: 'الاسم *',
-                          prefixIcon: Icon(Icons.person_outline),
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'الاسم مطلوب' : null,
                       ),
-                      const SizedBox(height: 14),
+                      Gap.h12,
                       // ─── حقل الهاتف ──────────────────────────────
-                      TextFormField(
+                      AppTextField(
                         controller: _phoneCtrl,
+                        label: 'رقم الهاتف',
+                        icon: Icons.phone_outlined,
+                        required: true,
+                        requiredMessage: 'رقم الهاتف مطلوب',
                         keyboardType: TextInputType.phone,
                         textInputAction: TextInputAction.done,
-                        decoration: const InputDecoration(
-                          labelText: 'رقم الهاتف *',
-                          prefixIcon: Icon(Icons.phone_outlined),
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'رقم الهاتف مطلوب' : null,
                       ),
-                      const SizedBox(height: 22),
+                      const SizedBox(height: AppSpacing.xxl),
                       // ─── زر إرسال الطلب ──────────────────────────
                       ElevatedButton.icon(
                         onPressed: (_sendingRequest || _checkingStatus)
                             ? null
                             : _sendRequest,
                         icon: _sendingRequest
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white),
-                              )
+                            ? const AppLoading.inline(color: Colors.white)
                             : const Icon(Icons.send_outlined),
                         label: Text(
                             _sendingRequest ? 'جارٍ الإرسال...' : 'إرسال طلب التفعيل'),
                         style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
                           backgroundColor: primary,
                           foregroundColor: Colors.white,
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: AppSpacing.md),
                       // ─── زر التحقق ───────────────────────────────
                       OutlinedButton.icon(
                         onPressed: (_sendingRequest || _checkingStatus)
                             ? null
                             : _checkStatus,
                         icon: _checkingStatus
-                            ? SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: primary),
-                              )
+                            ? AppLoading.inline(color: primary)
                             : const Icon(Icons.verified_outlined),
                         label: Text(_checkingStatus
                             ? 'جارٍ التحقق...'
                             : 'تحقق من التفعيل'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: AppSpacing.xl),
                       // ─── البانر ──────────────────────────────────
                       if (_banner != null) _BannerWidget(banner: _banner!),
-                      if (_banner != null) const SizedBox(height: 16),
+                      if (_banner != null) const SizedBox(height: AppSpacing.lg),
                       // ─── بطاقة معرّف الجهاز ──────────────────────
                       _DeviceIdCard(
                         deviceId: _deviceId ?? '',
                         onCopy: _copyDeviceId,
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: AppSpacing.xl),
                       // ─── أزرار التواصل ────────────────────────────
                       const _ContactRow(),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.lg),
                     ],
                   ),
                 ),
@@ -249,43 +232,46 @@ class _BannerWidget extends StatelessWidget {
   const _BannerWidget({required this.banner});
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color bg;
     final Color border;
     final Color fg;
     final IconData icon;
+    // في الوضع الداكن نستخدم خلفية داكنة شفّافة ونصاً/حداً فاتحاً بدل الدرجات
+    // الفاتحة (shade50) التي تبدو ساطعة وغير متناسقة على الخلفية الداكنة.
     switch (banner.type) {
       case _BannerType.success:
-        bg     = Colors.green.shade50;
-        border = Colors.green.shade400;
-        fg     = Colors.green.shade900;
+        bg     = isDark ? Colors.green.shade900.withValues(alpha: 0.25) : Colors.green.shade50;
+        border = isDark ? Colors.green.shade700 : Colors.green.shade400;
+        fg     = isDark ? Colors.green.shade100 : Colors.green.shade900;
         icon   = Icons.check_circle_outline;
       case _BannerType.pending:
-        bg     = Colors.orange.shade50;
-        border = Colors.orange.shade400;
-        fg     = Colors.orange.shade900;
+        bg     = isDark ? Colors.orange.shade900.withValues(alpha: 0.25) : Colors.orange.shade50;
+        border = isDark ? Colors.orange.shade700 : Colors.orange.shade400;
+        fg     = isDark ? Colors.orange.shade100 : Colors.orange.shade900;
         icon   = Icons.hourglass_top_outlined;
       case _BannerType.error:
-        bg     = Colors.red.shade50;
-        border = Colors.red.shade400;
-        fg     = Colors.red.shade900;
+        bg     = isDark ? Colors.red.shade900.withValues(alpha: 0.25) : Colors.red.shade50;
+        border = isDark ? Colors.red.shade700 : Colors.red.shade400;
+        fg     = isDark ? Colors.red.shade100 : Colors.red.shade900;
         icon   = Icons.error_outline;
     }
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: bg,
         border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadius.mdAll,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: fg, size: 20),
-          const SizedBox(width: 10),
+          Icon(icon, color: fg, size: AppIconSize.md),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
               banner.message,
-              style: TextStyle(color: fg, fontSize: 13, height: 1.5),
+              style: TextStyle(color: fg, fontSize: AppFontSize.body, height: 1.5),
             ),
           ),
         ],
@@ -302,43 +288,46 @@ class _DeviceIdCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
               Icon(Icons.fingerprint,
-                  size: 18,
+                  size: AppIconSize.md,
                   color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.sm),
               const Text('معرّف الجهاز',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: AppFontSize.body)),
               const Spacer(),
               IconButton(
                 onPressed: onCopy,
-                icon: const Icon(Icons.copy, size: 16),
+                icon: const Icon(Icons.copy, size: AppIconSize.sm),
                 tooltip: 'نسخ',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),
             ]),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
               decoration: BoxDecoration(
                 color: Colors.grey.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadius.smAll,
               ),
               child: SelectableText(
                 deviceId,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                style: const TextStyle(
+                    fontFamily: 'monospace', fontSize: AppFontSize.caption),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.sm),
             Text(
               'شارك هذا المعرّف مع المطوّر لتسريع عملية التفعيل.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: AppFontSize.caption, color: Colors.grey.shade600),
             ),
           ],
         ),
@@ -349,30 +338,23 @@ class _DeviceIdCard extends StatelessWidget {
 // ─── أزرار التواصل ────────────────────────────────────────────────────────────
 class _ContactRow extends StatelessWidget {
   const _ContactRow();
-  Future<void> _open(BuildContext ctx, String url) async {
-    final uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (ctx.mounted) {
-        ScaffoldMessenger.of(ctx)
-            .showSnackBar(const SnackBar(content: Text('تعذر فتح الرابط')));
-      }
-    }
-  }
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Text('للتواصل مع المطوّر عبر واتساب:',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-        const SizedBox(height: 8),
+            style: TextStyle(fontSize: AppFontSize.small, color: Colors.grey.shade600)),
+        const SizedBox(height: AppSpacing.sm),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () => _open(context,
+            onPressed: () => UrlHelper.open(context,
                 'https://wa.me/${SettingsService.supportWhatsApp}?text=${Uri.encodeComponent("مرحباً، أريد تفعيل دفتر الحسابات")}'),
-            icon: const Icon(Icons.chat, size: 16, color: Color(0xFF25D366)),
+            icon: const Icon(Icons.chat, size: AppIconSize.sm,
+                color: AppColors.whatsApp),
             label: const Text('مراسلة على واتساب',
-                style: TextStyle(color: Color(0xFF25D366), fontSize: 13)),
+                style: TextStyle(
+                    color: AppColors.whatsApp, fontSize: AppFontSize.body)),
           ),
         ),
       ],

@@ -3,6 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/services/activation_service.dart';
+import '../../core/theme/app_dimens.dart';
+import '../../core/widgets/app_dialog.dart';
+import '../../core/widgets/app_form_field.dart';
+import '../../core/widgets/app_loading.dart';
+import '../../core/widgets/app_snackbar.dart';
 import '../../data/models/customer.dart';
 import '../../data/repositories/customer_repository.dart';
 import '../../providers/app_provider.dart';
@@ -106,27 +111,17 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       if (!activated && count >= AppConstants.trialCustomerLimit) {
         if (!mounted) return;
         setState(() => _saving = false);
-        final go = await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('وصلت إلى الحد المجاني'),
-            content: Text(
+        final go = await AppDialog.confirm(
+          context,
+          title: 'وصلت إلى الحد المجاني',
+          message:
               'يمكنك إضافة حتى ${AppConstants.trialCustomerLimit} عميلاً مجاناً.\n'
               'فعّل التطبيق للاستمرار بدون حدود.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('لاحقاً'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('تفعيل الآن'),
-              ),
-            ],
-          ),
+          confirmLabel: 'تفعيل الآن',
+          cancelLabel: 'لاحقاً',
+          icon: Icons.lock_outline,
         );
-        if (go == true && mounted) {
+        if (go && mounted) {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const ActivationScreen()),
@@ -142,24 +137,15 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       );
       if (duplicate && mounted) {
         setState(() => _saving = false);
-        final proceed = await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('اسم مكرر'),
-            content: Text('يوجد عميل بالاسم "$name" مسبقاً.\nهل تريد المتابعة؟'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('تعديل الاسم'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('متابعة'),
-              ),
-            ],
-          ),
+        final proceed = await AppDialog.confirm(
+          context,
+          title: 'اسم مكرر',
+          message: 'يوجد عميل بالاسم "$name" مسبقاً.\nهل تريد المتابعة؟',
+          confirmLabel: 'متابعة',
+          cancelLabel: 'تعديل الاسم',
+          icon: Icons.info_outline,
         );
-        if (proceed != true || !mounted) return;
+        if (!proceed || !mounted) return;
         setState(() => _saving = true);
       }
     }
@@ -174,14 +160,21 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       isArchived: _isArchived,
     );
 
-    if (widget.customer == null) {
-      final newId = await repo.insert(customer);
+    try {
+      if (widget.customer == null) {
+        final newId = await repo.insert(customer);
+        if (!mounted) return;
+        HapticFeedback.mediumImpact();
+        Navigator.pop(context, customer.copyWith(id: newId));
+        return;
+      } else {
+        await repo.update(customer);
+      }
+    } catch (_) {
       if (!mounted) return;
-      HapticFeedback.mediumImpact();
-      Navigator.pop(context, customer.copyWith(id: newId));
+      setState(() => _saving = false);
+      AppSnackBar.error(context, 'تعذر حفظ العميل');
       return;
-    } else {
-      await repo.update(customer);
     }
 
     if (!mounted) return;
@@ -193,26 +186,15 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
     final id = widget.customer?.id;
     if (id == null) return;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('تأكيد الحذف'),
-        content: const Text('هل تريد حذف العميل نهائيًا؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('حذف'),
-          ),
-        ],
-      ),
+    final confirm = await AppDialog.confirm(
+      context,
+      title: 'حذف العميل',
+      message: 'هل تريد حذف العميل نهائياً؟ سيتم حذف بياناته ولا يمكن التراجع.',
+      confirmLabel: 'حذف',
+      destructive: true,
     );
 
-    if (confirm != true) return;
+    if (!confirm) return;
     if (!mounted) return;
 
     HapticFeedback.heavyImpact();
@@ -226,44 +208,28 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
       if (!mounted) return;
       setState(() => _saving = false);
       final hasTx = e.message == 'customer_has_transactions';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            hasTx
-                ? 'لا يمكن حذف العميل لأنه يملك حركات. احذف الحركات أولاً.'
-                : 'تعذر حذف العميل',
-          ),
-        ),
-      );
+      if (hasTx) {
+        AppSnackBar.warning(
+            context, 'لا يمكن حذف العميل لأنه يملك حركات. احذف الحركات أولاً.');
+      } else {
+        AppSnackBar.error(context, 'تعذر حذف العميل');
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر حذف العميل')),
-      );
+      AppSnackBar.error(context, 'تعذر حذف العميل');
     }
   }
 
   Future<bool> _confirmDiscard() async {
-    final leave = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('تجاهل التغييرات؟'),
-        content: const Text('لديك تغييرات غير محفوظة. هل تريد المغادرة؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('تابع التعديل'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('تجاهل'),
-          ),
-        ],
-      ),
+    return AppDialog.confirm(
+      context,
+      title: 'تجاهل التغييرات؟',
+      message: 'لديك تغييرات غير محفوظة. هل تريد المغادرة؟',
+      confirmLabel: 'تجاهل',
+      cancelLabel: 'تابع التعديل',
+      destructive: true,
     );
-    return leave == true;
   }
 
   @override
@@ -286,47 +252,41 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                 IconButton(
                   tooltip: 'حذف العميل',
                   onPressed: _saving ? null : _deleteCustomer,
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  icon: const Icon(Icons.delete_outline),
                 ),
             ],
           ),
           body: Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
                 // الاسم
-                TextFormField(
+                AppTextField(
                   controller: _nameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'الاسم *',
-                    prefixIcon: Icon(Icons.person),
-                  ),
+                  label: 'الاسم',
+                  icon: Icons.person,
+                  required: true,
+                  requiredMessage: 'الاسم مطلوب',
                   onChanged: (_) => _markDirty(),
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'الاسم مطلوب' : null,
                 ),
-                const SizedBox(height: 12),
+                Gap.h12,
                 // رقم الهاتف
-                TextFormField(
+                AppTextField(
                   controller: _gsmCtrl,
+                  label: 'رقم الهاتف (اختياري)',
+                  icon: Icons.phone,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'رقم الهاتف (اختياري)',
-                    prefixIcon: Icon(Icons.phone),
-                  ),
                   onChanged: (_) => _markDirty(),
                 ),
-                const SizedBox(height: 12),
+                Gap.h12,
                 // المجموعة
-                DropdownButtonFormField<int?>(
-                  initialValue: _groups.any((g) => g.id == _selectedGroupId)
+                AppDropdownField<int?>(
+                  value: _groups.any((g) => g.id == _selectedGroupId)
                       ? _selectedGroupId
                       : null,
-                  decoration: const InputDecoration(
-                    labelText: 'المجموعة (اختياري)',
-                    prefixIcon: Icon(Icons.group_work_outlined),
-                  ),
+                  label: 'المجموعة (اختياري)',
+                  icon: Icons.group_work_outlined,
                   items: [
                     const DropdownMenuItem<int?>(
                       value: null,
@@ -344,28 +304,23 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                     _markDirty();
                   },
                 ),
-                const SizedBox(height: 12),
+                Gap.h12,
                 // الملاحظات
-                TextFormField(
+                AppTextField(
                   controller: _notesCtrl,
+                  label: 'ملاحظات (اختياري)',
+                  icon: Icons.notes_outlined,
                   maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'ملاحظات (اختياري)',
-                    prefixIcon: Icon(Icons.notes_outlined),
-                    alignLabelWithHint: true,
-                  ),
                   onChanged: (_) => _markDirty(),
                 ),
-                const SizedBox(height: 12),
+                Gap.h12,
                 // النوع
-                DropdownButtonFormField<int?>(
-                  initialValue: _types.any((t) => t.id == _selectedTypeId)
+                AppDropdownField<int?>(
+                  value: _types.any((t) => t.id == _selectedTypeId)
                       ? _selectedTypeId
                       : null,
-                  decoration: const InputDecoration(
-                    labelText: 'النوع (اختياري)',
-                    prefixIcon: Icon(Icons.category_outlined),
-                  ),
+                  label: 'النوع (اختياري)',
+                  icon: Icons.category_outlined,
                   items: [
                     const DropdownMenuItem<int?>(
                       value: null,
@@ -385,7 +340,7 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                 ),
                 // أرشفة (في وضع التعديل فقط)
                 if (widget.customer != null) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppSpacing.xs),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     secondary: const Icon(Icons.archive_outlined),
@@ -398,17 +353,13 @@ class _AddEditCustomerScreenState extends State<AddEditCustomerScreen> {
                     },
                   ),
                 ],
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpacing.xxl),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: _saving ? null : _save,
                     child: _saving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const AppLoading.inline()
                         : Text(isEdit ? 'حفظ التعديلات' : 'إضافة العميل'),
                   ),
                 ),

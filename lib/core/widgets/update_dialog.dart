@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import '../helpers/url_helper.dart';
 import '../services/update_service.dart';
+import '../theme/app_dimens.dart';
+import '../theme/app_text_styles.dart';
 
 /// يعرض Dialog بتفاصيل التحديث المتاح.
 /// إذا كان [info.forceUpdate] == true لا يمكن إغلاق الـ Dialog.
@@ -20,14 +22,8 @@ class UpdateDialog extends StatelessWidget {
 
   Future<void> _openApk(BuildContext ctx) async {
     if (info.apkUrl.isEmpty) return;
-    final uri = Uri.parse(info.apkUrl);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (ctx.mounted) {
-        ScaffoldMessenger.of(ctx).showSnackBar(
-          const SnackBar(content: Text('تعذر فتح رابط التحديث')),
-        );
-      }
-    }
+    await UrlHelper.open(ctx, info.apkUrl,
+        errorMessage: 'تعذر فتح رابط التحديث');
   }
 
   @override
@@ -38,28 +34,24 @@ class UpdateDialog extends StatelessWidget {
       // منع إغلاق الـ Dialog بزر الرجوع عند force_update
       canPop: !info.forceUpdate,
       child: AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.lgAll),
         titlePadding: EdgeInsets.zero,
         title: _Header(primary: primary, forceUpdate: info.forceUpdate),
         content: _Content(info: info),
         actionsAlignment: MainAxisAlignment.center,
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actionsPadding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
         actions: [
           if (!info.forceUpdate)
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('لاحقاً'),
             ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
+          const SizedBox(width: AppSpacing.sm),
+          FilledButton.icon(
             onPressed: () => _openApk(context),
-            icon: const Icon(Icons.system_update_outlined, size: 18),
+            icon: const Icon(Icons.system_update_outlined, size: AppIconSize.md),
             label: const Text('تحديث الآن'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
           ),
         ],
       ),
@@ -78,33 +70,35 @@ class _Header extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: primary.withValues(alpha: 0.08),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: const BorderRadius.vertical(top: AppRadius.lgRadius),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+      padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.lg, horizontal: AppSpacing.xl),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(AppSpacing.sm),
             decoration: BoxDecoration(
               color: primary.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.system_update_outlined, color: primary, size: 22),
+            child: Icon(Icons.system_update_outlined,
+                color: primary, size: AppIconSize.lg),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   forceUpdate ? 'تحديث إلزامي!' : 'يوجد تحديث جديد',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16),
+                  style: AppTextStyles.subtitleBold,
                 ),
                 if (forceUpdate)
                   const Text(
                     'يجب التحديث للاستمرار في استخدام التطبيق',
-                    style: TextStyle(fontSize: 12, color: Colors.red),
+                    style: TextStyle(
+                        fontSize: AppFontSize.small, color: Colors.red),
                   ),
               ],
             ),
@@ -127,27 +121,28 @@ class _Content extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.xs),
           // ─── رقم الإصدار ──────────────────────────────────────────
           _VersionRow(info: info),
           if (info.changelog.isNotEmpty) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpacing.lg),
             // ─── سجل التغييرات ────────────────────────────────────
             const Text(
               'ما الجديد:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: AppFontSize.body),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpacing.sm),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
                 color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: AppRadius.smAll,
               ),
               child: Text(
                 info.changelog,
-                style: const TextStyle(fontSize: 13, height: 1.6),
+                style: const TextStyle(fontSize: AppFontSize.body, height: 1.6),
               ),
             ),
           ],
@@ -167,16 +162,16 @@ class _VersionRow extends StatelessWidget {
     final primary = Theme.of(context).colorScheme.primary;
     return Row(
       children: [
-        Icon(Icons.new_releases_outlined, size: 16, color: primary),
-        const SizedBox(width: 6),
+        Icon(Icons.new_releases_outlined, size: AppIconSize.sm, color: primary),
+        const SizedBox(width: AppSpacing.sm),
         Text(
           'الإصدار الجديد: ',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+          style: TextStyle(fontSize: AppFontSize.body, color: Colors.grey.shade700),
         ),
         Text(
           '${info.latestVersion}+${info.latestBuild}',
           style: TextStyle(
-            fontSize: 13,
+            fontSize: AppFontSize.body,
             fontWeight: FontWeight.bold,
             color: primary,
           ),

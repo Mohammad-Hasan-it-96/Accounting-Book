@@ -12,19 +12,32 @@ void main() {
 
       await CrashService.initialize();
 
+      // مهم: نضبط معالجنا *بعد* initialize (التي قد تُهيّئ Sentry) كي يكون هو
+      // المعالج الوحيد ويُلغي تكامل Sentry التلقائي — فلا يُلتقط العطل مرّتين.
+      // كل الأعطال (framework + async) تمرّ عبر recordError الذي يُرسل لـ Sentry.
       FlutterError.onError = (details) {
         CrashService.recordError(details.exception, details.stack,
             context: 'FlutterError');
       };
 
-      await Workmanager().initialize(callbackDispatcher);
-
-      // Re-register periodic task if previously enabled
-      final autoBackupOn = await BackupSchedulerService.isEnabled();
-      if (autoBackupOn) await BackupSchedulerService.enable();
-
       runApp(const App());
+
+      // تهيئة غير حرجة بعد الإقلاع حتى لا نؤخّر أول إطار: WorkManager يحتاج فقط
+      // إلى التسجيل مرّة، والمهمة الدورية تبقى مسجّلة عبر التشغيلات.
+      unawaited(_initBackgroundServices());
     },
     (error, stack) => CrashService.recordError(error, stack),
   );
+}
+
+Future<void> _initBackgroundServices() async {
+  try {
+    await Workmanager().initialize(callbackDispatcher);
+    // إعادة تسجيل المهمة الدورية إن كانت مفعّلة سابقاً (registerPeriodicTask
+    // بوضع replace فيدمبوتنت — آمن التكرار).
+    final autoBackupOn = await BackupSchedulerService.isEnabled();
+    if (autoBackupOn) await BackupSchedulerService.enable();
+  } catch (e, s) {
+    await CrashService.recordError(e, s, context: 'initBackgroundServices');
+  }
 }
